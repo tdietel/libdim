@@ -1,0 +1,22 @@
+#!/usr/bin/make -f
+
+DESTDIR=/tmp/libdim
+PREFIX=/usr
+
+Makefile:
+	./configure --host=arm-linux-uclibc --prefix=$(PREFIX)
+
+configure: Makefile
+
+build: configure
+	$(MAKE)
+
+clean:
+	$(MAKE) distclean
+
+install: build
+	rm -rf $(DESTDIR)
+	$(MAKE) install-strip DESTDIR=$(DESTDIR)
+	rm -rf $(DESTDIR)/$(PREFIX)/include
+	rm -rf $(DESTDIR)/$(PREFIX)/lib/*.la
+	rm -rf $(DESTDIR)/$(PREFIX)/lib/*.a
