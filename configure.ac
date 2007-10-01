@@ -44,7 +44,7 @@ AC_DEFUN([AC_OPTIMIZATION],
 ])
 
 dnl __________________________________________________________________
-AC_INIT([Distributed Information Management System], [15.0], [Clara.Gaspar@cern.ch], dim)
+AC_INIT([Distributed Information Management System], [16.03], [Clara.Gaspar@cern.ch], dim)
 AC_PREREQ(2.50)
 AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE([foreign])

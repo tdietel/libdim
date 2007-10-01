@@ -1,9 +1,9 @@
 Package: libdim
 Priority: optional
-Version: 16.03 
+Version: 16.03-1 
 Architecture: arm
 Section: libs
-Source: dim-12.11.tar.gz
+Source: dim-16.03.tar.gz
 Maintainer: Tom Dietel <tom@dietel.net>
 Depends: 
 Description: DIM Libraries

@@ -14,7 +14,8 @@ to call `./bootstrap` to initialize the autotools.
 
 The package also includes support for building an ipkg. If the
 ipkg-utils and fakeroot are installed (available at [2]), this can be
-done by executing `fakeroot ipkg-buildpackage`.
+done by executing `fakeroot ipkg-buildpackage` after bootstrapping and 
+configuring the package.
 
 
 [1] http://fmd.nbi.dk/fmd/fee/dim/
