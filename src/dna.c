@@ -194,6 +194,8 @@ register int size;
 				dna_connp->state = RD_HDR;
 				dna_start_read(conn_id, READ_HEADER_SIZE);
 				break;
+			default:
+				break;
 		}
 		if(dna_connp->buffer)
 		{
@@ -217,7 +219,7 @@ register int size;
 }
 
 
-dna_start_read(conn_id, size)
+int dna_start_read(conn_id, size)
 register int conn_id, size;
 {
 	register DNA_CONNECTION *dna_connp = &Dna_conns[conn_id];
@@ -230,7 +232,8 @@ register int conn_id, size;
 
 	dna_connp->curr_size = size;
 	dna_connp->full_size = size;
-	if(size > dna_connp->buffer_size) {
+	if(size > dna_connp->buffer_size) 
+	{
 		dna_connp->buffer =
 				(int *) realloc(dna_connp->buffer, size);
 		dna_connp->buffer_size = size;
@@ -255,13 +258,13 @@ static int dna_write_bytes( conn_id, buffer, size, nowait )
 register int conn_id, size, nowait;
 void *buffer;
 {
-	register DNA_CONNECTION *dna_connp = &Dna_conns[conn_id];
-	register int size_left, tcpip_code, wrote;
+	register int size_left, wrote;
 	register char *p;
 #ifdef VMS
 	int retries = WRITE_RETRIES, retrying = 0;
 	float wait_time = 0.01;
 #endif
+	extern int tcpip_write_nowait(int, char *, int);
 
 	p = (char *) buffer;
 	size_left = size;
@@ -320,7 +323,7 @@ void dna_test_write(conn_id)
 register int conn_id;
 {
 	register DNA_CONNECTION *dna_connp = &Dna_conns[conn_id];
-	register int tcpip_code, size;
+	register int tcpip_code;
 	DNA_HEADER test_pkt;
 	register DNA_HEADER *test_p = &test_pkt;
 
@@ -356,8 +359,6 @@ static int do_dna_write(id)
 int id;
 {
 	register DNA_CONNECTION *dna_connp;
-	DNA_HEADER header_pkt;
-	register DNA_HEADER *header_p = &header_pkt;
 	int tcpip_code;
 	WRITE_ITEM *ptr;
 	int conn_id, size;
@@ -395,7 +396,7 @@ int id;
 	return(1);
 }	
 
-dna_write_nowait(conn_id, buffer, size)
+int dna_write_nowait(conn_id, buffer, size)
 register int conn_id, size;
 void *buffer;
 {
@@ -537,7 +538,7 @@ void (*error_ast)();
 int *protocol, *port;
 {
 	register DNA_CONNECTION *dna_connp;
-	register int tcpip_code, err_code;
+	register int tcpip_code;
 	register int conn_id;
 
 	if(!DNA_Initialized)
@@ -592,12 +593,16 @@ char *task;
 void dna_set_test_write(conn_id, time)
 int conn_id, time;
 {
+	extern void tcpip_set_test_write(int, int);
+
 	tcpip_set_test_write(conn_id, time);
 }
 
 void dna_rem_test_write(conn_id)
 int conn_id;
 {
+	extern void tcpip_rem_test_write(int);
+
 	tcpip_rem_test_write(conn_id);
 }
 
@@ -641,7 +646,7 @@ register int port;
 }
 
 
-static rel_pend_conn( conn_id )
+static void rel_pend_conn( conn_id )
 int conn_id;
 {
 	Pending_conns[conn_id].task_name[0] = '\0';
@@ -660,6 +665,7 @@ void (*error_ast)();
 	char str[256];
 	register int tcpip_code, conn_id, id;
 	DNA_NET local_buffer;
+	extern int get_proc_name(char *);
 
 	if(!DNA_Initialized) {
 		conn_arr_create(SRC_DNA);
@@ -697,7 +703,7 @@ void (*error_ast)();
 		conn_free( conn_id );
 		return(0);
 	}
-	if(id = find_pend_conn(server_task, port))
+	if( (id = find_pend_conn(server_task, port)) )
 	{
 		sprintf( str,"Connection established to");
 		if(!strcmp(server_task,"DIM_DNS"))
@@ -735,7 +741,8 @@ void (*error_ast)();
 int dna_close(conn_id)
 int conn_id;
 {
-	release_conn(conn_id);
+	if(conn_id > 0)
+		release_conn(conn_id);
 	return(1);
 }
 
@@ -769,6 +776,7 @@ int conn_id, code;
 char *routine_name;
 {
 	char str[128];
+	extern void tcpip_get_error(char *, int);
 	dim_print_date_time();
 	printf("%s", routine_name);
 	if(conn_id)
@@ -799,6 +807,7 @@ char *routine_name;
 int severity, errcode;
 {
 	char str[128], msg[1024];
+	extern void tcpip_get_error();
 
 	sprintf(msg, "%s", routine_name);
 	if(conn_id)
@@ -817,7 +826,9 @@ int severity, errcode;
 		strcat(msg, str);
 	}
 	if(Dna_conns[conn_id].error_ast)
+	{
 		Dna_conns[conn_id].error_ast(conn_id, severity, errcode, msg);
+	}
 }
 
 static void save_node_task(conn_id, buffer)

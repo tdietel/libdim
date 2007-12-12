@@ -13,7 +13,7 @@
 
 #include "dim_common.h"
 
-#define DIM_VERSION_NUMBER 1603
+#define DIM_VERSION_NUMBER 1614
 
 #define MY_LITTLE_ENDIAN	0x1
 #define MY_BIG_ENDIAN 		0x2
@@ -45,6 +45,8 @@
 #endif
 
 #ifdef __unix__
+#include <unistd.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <stdio.h>
@@ -197,7 +199,7 @@ typedef enum { NOSWAP, SWAPS, SWAPL, SWAPD} SWAP_TYPE;
 #define	STA_CONN		1		/* Connection made           */
 
 #define	START_PORT_RANGE	5100		/* Lowest port to use        */
-#define	STOP_PORT_RANGE		6000		/* Highest port to use       */
+#define	STOP_PORT_RANGE		10000		/* Highest port to use       */
 #define	TEST_TIME_OSK		15		/* Interval to test conn.    */
 #define	TEST_TIME_VMS		30		/* Interval to test conn.    */
 #define	TEST_WRITE_TAG		25		/* DTQ tag for test writes   */
@@ -533,6 +535,7 @@ _DIM_PROTOE( int get_dns_port_number, () );
 _DIM_PROTOE( int get_dns_node_name, ( char *node_name ) );
 
 _DIM_PROTOE( int get_dns_accepted_domains, ( char *domains ) );
+_DIM_PROTOE( int get_dns_accepted_nodes, ( char *nodes ) );
 
 _DIM_PROTO( double _swapd_by_addr, (double *d) );
 _DIM_PROTO( int _swapl_by_addr, (int *l) );

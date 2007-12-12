@@ -73,7 +73,7 @@ char **argv;
 	char name[64];
 	int id = 123;
 
-	dim_set_dns_node("lxplus050.cern.ch");
+	dic_set_dns_node("lxplus050.cern.ch");
 
 /*	
 	dic_set_debug_on();

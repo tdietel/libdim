@@ -13,12 +13,11 @@
 #include <stdio.h>
 #define DIMLIB
 #include <dim.h>
-#ifdef __linux__
-#include <sys/time.h>
-#endif
+
 #ifdef VxWorks
 #include <time.h>
 #endif
+
 #include <sys/timeb.h>
 
 /* global definitions */
@@ -46,8 +45,8 @@ typedef struct {
 
 
 static QUEUE_ENT timer_queues[MAX_TIMER_QUEUES + 2] = { 
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 
+	{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},
+	{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}
 };
 
 static int Inside_ast = 0;
@@ -73,6 +72,9 @@ static int Threads_off = 0;
 
 void dim_no_threads()
 {
+	extern void dic_no_threads();
+	extern void dis_no_threads();
+	
 	Threads_off = 1;
 	dic_no_threads();
 	dis_no_threads();
@@ -82,8 +84,8 @@ int dim_dtq_init(thr_flag)
 int thr_flag;
 {
 struct sigaction sig_info;
-sigset_t set, set1;
-int i, pid, ret = 0;
+sigset_t set;
+int pid, ret = 0;
 
 	pid = getpid();
 	if( !sigvec_done) 
@@ -91,11 +93,13 @@ int i, pid, ret = 0;
 	    Inside_ast = 0;
 	    Alarm_runs = 0;
 	    DIM_last_time = 0;
+/*
 	    for(i = 0; i < MAX_TIMER_QUEUES + 2; i++)
 	    {
 	        timer_queues[i].queue_head = 0;
 			timer_queues[i].remove_entries = 0;
 	    }
+*/
 		if( timer_queues[SPECIAL_QUEUE].queue_head == NULL ) {
 			timer_queues[SPECIAL_QUEUE].queue_head = (TIMR_ENT *)malloc(sizeof(TIMR_ENT));
 			memset(timer_queues[SPECIAL_QUEUE].queue_head, 0, sizeof(TIMR_ENT));
@@ -145,18 +149,20 @@ int num;
 int dim_dtq_init(thr_flag)
 int thr_flag;
 {
-	int i, tid = 1;
-	void create_alrm_thread();
+	int tid = 1;
+	void create_alrm_thread(void);
 
 	if( !sigvec_done ) {
 		Inside_ast = 0;
 	    Alarm_runs = 0;
 	    DIM_last_time = 0;
+/*
 	    for(i = 0; i < MAX_TIMER_QUEUES + 2; i++)
 	    {
 	        timer_queues[i].queue_head = 0;
 			timer_queues[i].remove_entries = 0;
 	    }
+*/
 		if( timer_queues[SPECIAL_QUEUE].queue_head == NULL ) {
 			timer_queues[SPECIAL_QUEUE].queue_head = (TIMR_ENT *)malloc(sizeof(TIMR_ENT));
 			memset(timer_queues[SPECIAL_QUEUE].queue_head, 0, sizeof(TIMR_ENT));
@@ -182,6 +188,24 @@ int thr_flag;
 }
 
 #endif
+
+void dim_dtq_stop()
+{
+/*
+	int i;
+
+	for(i = 0; i < MAX_TIMER_QUEUES + 2; i++)
+	{
+		if( timer_queues[i].queue_head != NULL)
+		{
+			dtq_delete(i);
+			free((TIMR_ENT *)timer_queues[i].queue_head);
+			timer_queues[i].queue_head = 0;
+		}
+	}
+*/
+	sigvec_done = 0;
+}
 
 static int get_current_time(millies)
 int *millies;
@@ -268,8 +292,7 @@ void dim_usleep(int usecs)
 
 int dtq_task(void *dummy)
 {
-int i, deltat;
-int done = 0;
+int deltat;
 static int to_go;
 
 	while(1)
@@ -315,6 +338,7 @@ static int to_go;
 int dtq_create()
 {
 	int i;
+	extern void dim_init_threads(void);
 
 	if(!Threads_off)
 	{
@@ -413,7 +437,7 @@ void (*user_routine)();
 		{
 			auxp = queue_head;
 			prevp = auxp;
-			while(auxp = (TIMR_ENT *)dll_get_prev((DLL *)queue_head, (DLL *)auxp))
+			while((auxp = (TIMR_ENT *)dll_get_prev((DLL *)queue_head, (DLL *)auxp)))
 			{
 				if(time >= auxp->time)
 				{
@@ -456,7 +480,6 @@ int dtq_clear_entry(entry)
 TIMR_ENT *entry;
 {
 	int time_left, deltat = 0;
-	time_t now;
 
 	DISABLE_AST
 	deltat = get_elapsed_time();
@@ -472,7 +495,6 @@ int queue_id;
 TIMR_ENT *entry;
 {
 	int time_left, deltat = 0;
-	time_t now;
 
 	DISABLE_AST
 	deltat = get_elapsed_time();
@@ -504,7 +526,7 @@ int queue_id;
 	{
 		auxp = queue_head;
 		prevp = auxp;
-		while(auxp = (TIMR_ENT *)dll_get_next((DLL *)queue_head, (DLL *)auxp))
+		while( (auxp = (TIMR_ENT *)dll_get_next((DLL *)queue_head, (DLL *)auxp)) )
 		{
 			if(auxp->time == -1)
 			{
@@ -535,10 +557,10 @@ int deltat;
 		min_time = -10;
 	if((min_time != -10) || deltat)
 	{
-		if((queue_head = timer_queues[SPECIAL_QUEUE].queue_head) != NULL)
+		if( (queue_head = timer_queues[SPECIAL_QUEUE].queue_head) != NULL)
 		{
 			auxp = queue_head;
-			while(auxp = (TIMR_ENT *)dll_get_next((DLL *)queue_head,(DLL *)auxp))
+			while( (auxp = (TIMR_ENT *)dll_get_next((DLL *)queue_head,(DLL *)auxp)) )
 			{
 				auxp->time_left -= deltat;
 				if(auxp->time_left > 0)
@@ -555,7 +577,7 @@ int deltat;
 			if( (queue_head = timer_queues[queue_id].queue_head) == NULL )
 				continue;
 			auxp = queue_head;
-			while(auxp = (TIMR_ENT *)dll_get_next((DLL *)queue_head,(DLL *)auxp))
+			while( (auxp = (TIMR_ENT *)dll_get_next((DLL *)queue_head,(DLL *)auxp)) )
 			{
 				auxp->time_left -= deltat;
 				if(auxp->time_left > 0)
@@ -642,7 +664,7 @@ static int scan_it()
 	DISABLE_AST
 	queue_head = timer_queues[WRITE_QUEUE].queue_head;
 	auxp = queue_head;
-	while(auxp = (TIMR_ENT *)dll_get_next((DLL *)queue_head,(DLL *)auxp))
+	while( (auxp = (TIMR_ENT *)dll_get_next((DLL *)queue_head,(DLL *)auxp)) )
 	{	
 		done[n++] = auxp;
 		if(n == 1000)
@@ -674,7 +696,7 @@ static int scan_it()
 	queue_head = timer_queues[SPECIAL_QUEUE].queue_head;
 	auxp = queue_head;
 	prevp = auxp;
-	while(auxp = (TIMR_ENT *)dll_get_next((DLL *)queue_head,(DLL *)auxp))
+	while( (auxp = (TIMR_ENT *)dll_get_next((DLL *)queue_head,(DLL *)auxp)) )
 	{	
 		if(auxp->time_left <= 0)
 		{
@@ -701,7 +723,7 @@ static int scan_it()
 			auxp = curr_entry;
 		else
 			auxp = queue_head;
-		while(auxp = (TIMR_ENT *)dll_get_next((DLL *)queue_head,(DLL *)auxp))
+		while( (auxp = (TIMR_ENT *)dll_get_next((DLL *)queue_head,(DLL *)auxp)) )
 		{	
 			if(auxp->time_left <= 0)
 			{
@@ -760,6 +782,8 @@ int time;
 long tag;
 void (*user_routine)();
 {
+	extern void dim_init_threads();
+
 	if(!Threads_off)
 	{
 		dim_init_threads();
@@ -781,7 +805,7 @@ long tag;
 	queue_head = timer_queues[SPECIAL_QUEUE].queue_head;
 	entry = queue_head;
 	prevp = entry;
-	while(entry = (TIMR_ENT *)dll_get_next((DLL *)queue_head,(DLL *)entry))
+	while( (entry = (TIMR_ENT *)dll_get_next((DLL *)queue_head,(DLL *)entry)) )
 	{
 		if( entry->tag == tag ) 
 		{
@@ -805,8 +829,8 @@ long tag;
 
 #ifndef WIN32
 
-int dtq_sleep(secs)
-int secs;
+unsigned int dtq_sleep(secs)
+unsigned int secs;
 {
 
 #ifndef NOTHREADS
@@ -834,8 +858,8 @@ int secs;
 
 #else
 
-int dtq_sleep(secs)
-int secs;
+unsigned int dtq_sleep(secs)
+unsigned int secs;
 {
 	Dtq_sleeping = 1;
 	dtq_start_timer(secs, dtq_sleep_rout, 1);

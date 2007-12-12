@@ -1,6 +1,8 @@
 
 #include <dic.h>
 #include <time.h>
+#include <string.h>
+#include <stdio.h>
 
 char str[80];
 char str_res[10][80];
@@ -36,8 +38,6 @@ void rout( tag, buf, size )
 char *buf;
 int *tag, *size;
 {
-	int conn_id;
-	char server[128];
 
 	if(*tag == 1100)
 	{
@@ -48,7 +48,7 @@ int *tag, *size;
 	{
 		char node[128], str[256];
 		int secs, millis;
-		dim_get_dns_node(node);
+		dic_get_dns_node(node);
 		printf("DNS node = %s\n",node);
 		printf("size = %d\n",*size);
 		memcpy(&t, buf, *size);
@@ -75,7 +75,7 @@ main(argc,argv)
 int argc;
 char **argv;
 {
-	int i, *ptr;
+	int i;
 	char aux[80];
 	int id = 123;
 
@@ -83,7 +83,7 @@ char **argv;
 	dic_set_debug_on();
 */
 /*
-	dim_set_dns_node("pclhcb99.cern.ch");
+	dic_set_dns_node("pclhcb99.cern.ch");
 */
 
 	sprintf(str,"%s/SET_EXIT_HANDLER",argv[2]);
@@ -110,18 +110,11 @@ char **argv;
 */
 
 	sprintf(aux,"%s/TEST_CMD",argv[2]);
-//	sprintf(aux,"%s/TEST_NEW_CMD",argv[2]);
 	while(1)
 	{
-//		int index = 0;
 		sleep(10);
 
 		printf("Sending Command, size = %d, i = %d\n",sizeof(t), t.i);
 		dic_cmnd_service(aux,&t,sizeof(t));
-
-//		dic_cmnd_service(aux,&index,sizeof(int));
-//		index++;
-//		dic_cmnd_service(aux,&index,sizeof(int));
-//		index++;
 	}
 }

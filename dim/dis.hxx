@@ -32,6 +32,7 @@ public:
 	DimService *itsService;
 	DimService *getService() { return itsService; } ;
 	virtual void serviceHandler() = 0;
+	virtual ~DimServiceHandler() {};
 };
 
 class DllExp DimCommandHandler{
@@ -39,16 +40,19 @@ public:
 	DimCommand *itsCommand;
 	DimCommand *getCommand() { return itsCommand; } ;
 	virtual void commandHandler() = 0;
+	virtual ~DimCommandHandler() {};
 };
 
 class DllExp DimClientExitHandler{
 public:
 	virtual void clientExitHandler() = 0;
+	virtual ~DimClientExitHandler() {};
 };
 
 class DllExp DimExitHandler{
 public:
 	virtual void exitHandler(int code) = 0;
+	virtual ~DimExitHandler() {};
 };
 
 class DllExp DimServer : public DimServiceHandler, public DimCommandHandler,
@@ -88,8 +92,8 @@ public:
 	void addExitHandler();
 	void addErrorHandler();
 	virtual void clientExitHandler() {};
-	virtual void exitHandler(int code) {};
-	virtual void errorHandler(int severity, int code, char *msg) {};
+	virtual void exitHandler(int /* code */) {};
+	virtual void errorHandler(int /* severity */, int /* code */, char* /* msg */) {};
 //	static char *getClientServices();
 //	static char *getClientServices(int clientId);
 	static char **getClientServices();

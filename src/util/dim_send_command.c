@@ -66,20 +66,28 @@ char **argv;
 	sleep(1);
 }
 */
-main(argc,argv)
+int main(argc,argv)
 int argc;
 char **argv;                    
 {
 int i;
 int silent = 0;
-char *dns = 0;
 char data[1024] = {'\0'};
+char dns_node[128], *ptr;
+int dns_port = 0;
 
+	dns_node[0] = '\0'; 
 	for(i = 1; i < argc; i++)
 	{
 		if(!strcmp(argv[i],"-dns"))
 		{
-			dns = argv[i+1];
+			strcpy(dns_node,argv[i+1]);
+			if((ptr = strchr(dns_node,':')))
+			{
+				*ptr = '\0';
+				ptr++;
+				sscanf(ptr,"%d",&dns_port);
+			}
 			i++;
 		}
 		else if(!strcmp(argv[i],"-s"))
@@ -96,9 +104,13 @@ char data[1024] = {'\0'};
 				strcpy(data,argv[i]);
 		}
 	}
-	if(dns)
+	if(dns_node[0])
 	{
-		dim_set_dns_node(dns);
+		dic_set_dns_node(dns_node);
+	}
+	if(dns_port)
+	{
+		dic_set_dns_port(dns_port);
 	}
 	if(!str[0])
 	{
@@ -112,4 +124,5 @@ char data[1024] = {'\0'};
 	while(!received)
 	  dim_wait();
 	sleep(1);
+	return(1);
 }

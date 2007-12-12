@@ -75,9 +75,10 @@ int main()
 	complexData.floatval = (float)3.4;
 	strcpy(complexData.stringval,"IDLE");
 
-	cData.farr[0] = 1.2; 
-	cData.farr[1] = 2.2; 
-	cData.farr[2] = 3.2;
+
+	cData.farr[0] = (float)1.2; 
+	cData.farr[1] = (float)2.2; 
+	cData.farr[2] = (float)3.2;
 	cData.farr[3] = 0;
 	cData.farr[4] = 0;
 	cData.farr[5] = 0;
@@ -139,8 +140,26 @@ int main()
 		
 		complexService.updateService();
 
-		simpleService.setQuality(complexData.bitset);
+//		simpleService.setQuality(complexData.bitset);
 		simpleService.updateService();
+//		simpleData += (float)1;
+//		simpleService.updateService();
+//		simpleData += (float)1;
+//		simpleService.updateService();
+//		simpleData += (float)1;
+//		simpleService.updateService();
+//		simpleData += (float)1;
+//		simpleService.updateService();
+//		simpleData += (float)1;
+//		simpleService.updateService();
+//		simpleData += (float)1;
+//		simpleService.updateService();
+//		simpleData += (float)1;
+//		simpleService.updateService();
+//		simpleData += (float)1;
+//		simpleService.updateService();
+//		simpleData += (float)1;
+//		simpleService.updateService();
 
 		if(strlen(cData.str) < 16)
 			strcat(cData.str," abc");

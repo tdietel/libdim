@@ -24,7 +24,16 @@ TokenString::TokenString(char *str, char *seps)
 
 TokenString::~TokenString()
 {
-	delete token_buff;
+  if(token_buff) 
+  { 
+	  delete []token_buff; 
+	  token_buff = 0; 
+  }
+  if(token_seps) 
+  { 
+	  delete []token_seps; 
+	  token_seps = 0; 
+  }
 }
 
 void TokenString::store_str(char *str)
@@ -101,7 +110,7 @@ int sep = 0;
 		while(*str)
 		{
 			sep = 0;
-			for(i = 0; i < strlen(token_seps); i++)
+			for(i = 0; i < (int)strlen(token_seps); i++)
 			{
 				if(*str == token_seps[i])
 				{

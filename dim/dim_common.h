@@ -112,6 +112,7 @@ typedef int64_t	longlong;
 
 #ifdef __unix__
 #include <signal.h>
+#include <unistd.h>
 
 #define DISABLE_AST     sigset_t set, oset; sigemptyset(&set);\
 						sigaddset(&set,SIGIO);\
@@ -152,7 +153,7 @@ _DIM_PROTOE( int id_get,           (void *ptr, int type) );
 _DIM_PROTOE( void id_free,         (int id, int type) );
 _DIM_PROTOE( void *id_get_ptr,     (int id, int type) );
 
-_DIM_PROTOE( int dtq_sleep,	(int secs) );
+_DIM_PROTOE( unsigned int dtq_sleep,	(unsigned int secs) );
 _DIM_PROTOE( void dtq_start_timer,      (int secs, void(*rout)(void*), void *tag) );
 _DIM_PROTOE( int dtq_stop_timer,		(void *tag) );
 _DIM_PROTOE( void dim_init,				() );
@@ -176,6 +177,16 @@ _DIM_PROTOE( int dim_set_priority,		(int dim_thread, int *prio) );
 _DIM_PROTOE( int dim_set_scheduler_class,		(int sched_class) );
 _DIM_PROTOE( int dim_get_scheduler_class,		(int *sched_class) );
 _DIM_PROTOE( int dim_start_thread,    (void(*rout)(void*), void *tag) );
+_DIM_PROTOE( int dic_set_dns_node,		(char *node) );
+_DIM_PROTOE( int dic_get_dns_node,		(char *node) );
+_DIM_PROTOE( int dic_set_dns_port,		(int port) );
+_DIM_PROTOE( int dic_get_dns_port,		() );
+_DIM_PROTOE( int dis_set_dns_node,		(char *node) );
+_DIM_PROTOE( int dis_get_dns_node,		(char *node) );
+_DIM_PROTOE( int dis_set_dns_port,		(int port) );
+_DIM_PROTOE( int dis_get_dns_port,		() );
+_DIM_PROTOE( void dim_stop,				() );
+
 
 #ifdef WIN32
 #define getpid _getpid

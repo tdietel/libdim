@@ -3,6 +3,7 @@
 #include <time.h>
 #include <dim.h>
 #include <dic.h>
+#include <dis.h>
 #include "did.h"
 
 int First_time = 1;
@@ -35,11 +36,11 @@ int Force_update = 0;
 static XmFontList did_default_font, did_small_font, 
   did_label_font, did_server_font;
 
-static MrmType class_id;		/* Place to keep class ID*/
-static MrmType *dummy_class;            /* and class variable. */
+/*static MrmType class_id;*/		/* Place to keep class ID*/
+/*static MrmType *dummy_class;*/            /* and class variable. */
 
-static char *db_filename_vec[1];        /* Mrm.hierachy file list. */
-static int db_filename_num;
+/*static char *db_filename_vec[1];*/        /* Mrm.hierachy file list. */
+/*static int db_filename_num;*/
 
 /*
  * Forward declarations
@@ -52,6 +53,10 @@ void view_opts();
 void dns_control();
 void ok_pop_up();                                                            
 void cancel_pop_up();
+
+extern void set_something();
+extern void get_something();
+extern void set_color();
 
 /*
  * Names and addresses of callback routines to register with Mrm
@@ -107,12 +112,12 @@ char * fontname;
   return font;
 }
 
-create_matrix_widget()
+void create_matrix_widget()
 {
 Widget row_col_id, top_id;
 Arg arglist[10];
-int color, n = 0;
-char w_name[40];
+int n = 0;
+char w_name[MAX_NAME];
 
 	top_id = Window_id;
 	XtSetArg(arglist[n], XmNborderWidth, 0); n++;
@@ -129,7 +134,7 @@ char w_name[40];
 	*/
 }
 
-Widget gui_create_main_window(parent)
+void gui_create_main_window(parent)
      Widget parent;
 {
 
@@ -138,7 +143,6 @@ Widget mb;
 Widget mf;
 Widget tl;
 Widget sl;
-Widget rc;
 Widget f;
 XmString xms;
 int par;
@@ -368,7 +372,6 @@ void gui_create_main_menu( Widget mb )
 Widget cb;
 Widget mn;
 Widget bt;
-char * str;
 XmString xms;
     /* File */
     mn = XmCreatePulldownMenu ( mb, "FileMB", NULL, 0 );
@@ -760,8 +763,7 @@ int argc;
 char **argv;
 {
 Widget toplevel;
-char size = 's';
-register int i;
+void gui_create_main_window();
 
     XtToolkitInitialize();
     app_context = XtCreateApplicationContext();
@@ -789,15 +791,12 @@ int main(argc, argv)
     unsigned int argc;                  /* Command line argument count. */
     char *argv[];                       /* Pointers to command line args. */
 {
-	Widget main_window_id;
-    Arg arglist[2];
-    int n, i, ret;
+    int i;
 	char opt_str[20], *ptr;
-	static char uid_file[132];
-	XEvent event;
 	XtInputMask mask;
 	void do_got_service_list();
 	void do_show_clients();
+	void app_initialize();
        
 	dim_no_threads();
 	dic_disable_padding();
@@ -837,7 +836,7 @@ int main(argc, argv)
 			{
   				if(!(ptr = strchr(argv[1],'=')))
 				{
-					if(ptr = strchr(argv[2],'='))
+					if( (ptr = strchr(argv[2],'=')) )
 					{
 						ptr++;
 						if(!(*ptr))
@@ -902,7 +901,7 @@ int main(argc, argv)
 
 static char no_link = -1;
 
-app_initialize(tag)
+void app_initialize(tag)
 int tag;
 {
 void check_put_label();
@@ -910,6 +909,9 @@ void check_put_label();
 void update_servers();
 void update_servers_new();
 void update_show_servers();
+extern void get_all_colors();
+extern void set_title();
+extern void set_icon_title();
 
 	get_all_colors(display,Matrix_id[Curr_matrix]);
 	set_title(toplevel_widget,"DID - DIM Information Display");
@@ -952,8 +954,6 @@ Widget		w;
 int		*tag;
 unsigned long	*reason;
 {
-Pixmap did_icon;
-MrmCode type;
 
 	Window_id = w;
 /*
@@ -966,6 +966,7 @@ Widget		w;
 int		tag;
 unsigned long	*reason;
 {
+	void get_server_node(), get_server_service(), show_servers();
 
 	Curr_view_opt = tag;
 	switch(tag)
@@ -1011,12 +1012,13 @@ unsigned long	*reason;
 	}
 }
 
-get_server_node()
+void get_server_node()
 {
 Widget id,sel_id;
 int i, n_nodes;
 char nodes_str[MAX_NODE_NAME*MAX_CONNS];
 char *ptr, *node;
+int get_nodes();
 
 	sel_id = put_selection(DID_SEL_NODE,"Node Selection");
 	id = XmSelectionBoxGetChild(sel_id,XmDIALOG_HELP_BUTTON);
@@ -1038,12 +1040,9 @@ char *ptr, *node;
 	set_something(id,XmNlistVisibleItemCount,(i < 8) ? i : 8);
 }	
 
-get_server_service()
+void get_server_service()
 {
 Widget id,sel_id;
-int i, n_nodes;
-char nodes_str[MAX_NODE_NAME*MAX_CONNS];
-char *ptr, *node;
 
 	sel_id = put_selection(DID_SEL_SERVICE,"Service Selection");
 	id = XmSelectionBoxGetChild(sel_id,XmDIALOG_HELP_BUTTON);
@@ -1067,12 +1066,12 @@ int get_nodes(node_ptr)
 char *node_ptr;
 {
 DNS_SERVER_INFO *ptr;
-int i, n_nodes = 0;
+int n_nodes = 0;
 SERVER *servp;
 
 	node_ptr[0] = '\0';
 	servp = Server_head;
-	while(servp = (SERVER *)sll_get_next((SLL *)servp))
+	while( (servp = (SERVER *)sll_get_next((SLL *)servp)) )
 	{
 		ptr = &servp->server;
 		if(strstr(node_ptr,ptr->node) <= (char *)0)
@@ -1093,18 +1092,18 @@ void get_service_format()
 
 	strcpy(str,Curr_service_name);
 	rpc_flag = 0;
-	if(ptr = strstr(str,"/RpcIn"))
+	if( (ptr = strstr(str,"/RpcIn")) )
 	{
 		*ptr = '\0';
 		rpc_flag = 1;
 	}
-	if(ptr = strstr(str,"/RpcOut"))
+	if( (ptr = strstr(str,"/RpcOut")) )
 	{
 		*ptr = '\0';
 		rpc_flag = 2;
 	}
 	strcat(str,"|");
-	if(ptr = strstr(Curr_service_list,str))
+	if( (ptr = strstr(Curr_service_list,str)) )
 	{
 		if(!rpc_flag)
 		{
@@ -1136,6 +1135,8 @@ int *buffer;
 	char str[256], *ptr, *ptr1;
 	int rpc_flag;
 */
+	void print_service_formatted();
+
 	Service_content_str = malloc(1024 + (*size)*16);
 	Service_buffer = malloc(*size);
 	memcpy(Service_buffer, (char *)buffer, *size);
@@ -1170,7 +1171,7 @@ int *buffer;
 	*/
 }
 	
-print_service_formatted(buff, size)
+void print_service_formatted(buff, size)
 void *buff;
 int size;
 {
@@ -1181,7 +1182,7 @@ char *ptr;
 void *buffer_ptr;
 char timestr[128], aux[10];
 int quality = 0, secs = 0, mili = 0; 
-
+int did_write_string();
 
   sprintf(Service_content_str,
 	  "Service %s (%s) Contents :\n  \n", Curr_service_name,
@@ -1224,7 +1225,7 @@ int quality = 0, secs = 0, mili = 0;
 	 sscanf(ptr, "%d", &num);
 	 ret = did_write_string(type, num, &buffer_ptr, size);
 	 size -= ret;
-	 if(ptr = strchr(ptr,';'))
+	 if( (ptr = strchr(ptr,';')) )
 	   ptr++;
 	 else
 	   break;
@@ -1244,9 +1245,14 @@ int num;
 void **buffer_ptr;
 int ssize;
 {
-int i, ret;
 void *ptr;
 int size, psize;
+
+  void print_service_standard();
+  void print_service_char();
+  void print_service_short();
+  void print_service_float();
+  void print_service_double();
 
   ptr = *buffer_ptr;
   switch(type)
@@ -1406,10 +1412,10 @@ int last[4];
 }
 */
 
-print_service_standard(buff, size)
+void print_service_standard(buff, size)
 int *buff, size;
 {
-int i,j, str_flag = 0;
+int i,j;
 char *asc, *ptr, str[80], tmp[256];
 int last[4];
 
@@ -1474,10 +1480,10 @@ int last[4];
 	strcpy(ptr, tmp);
 }
 
-print_service_longlong(buff, size)
+void print_service_longlong(buff, size)
 longlong *buff, size;
 {
-int i,j, str_flag = 0;
+int i,j;
 char *asc, *ptr, str[80], tmp[256];
 longlong last[4];
 
@@ -1498,7 +1504,7 @@ longlong last[4];
 		}
 		if(!(i%4))
 			strcat(tmp,"H: ");
-		sprintf(str,"    %08X",buff[i]);
+		sprintf(str,"    %08X",(unsigned)buff[i]);
 		strcat(tmp,str);
 		last[i%4] = buff[i];
 		if((i%4 == 3) || (i == (size-1)))
@@ -1508,7 +1514,7 @@ longlong last[4];
 			{
 				if(j == 0)
 					strcat(tmp,"        D: ");
-				sprintf(str,"%12d",last[j]);
+				sprintf(str,"%12d",(int)last[j]);
 				strcat(tmp,str);
 			}
 			strcat(tmp,"\n");
@@ -1521,11 +1527,11 @@ longlong last[4];
 	strcpy(ptr, tmp);
 }
 
-print_service_short(buff, size)
+void print_service_short(buff, size)
 short *buff;
 int size;
 {
-int i,j, str_flag = 0;
+int i,j;
 char *asc, *ptr, str[80], tmp[256];
 short last[8];
 
@@ -1590,11 +1596,11 @@ short last[8];
 	strcpy(ptr, tmp);
 }
 
-print_service_char(buff, size)
+void print_service_char(buff, size)
 char *buff;
 int size;
 {
-int i,j, str_flag = 0;
+int i,j;
 char *asc, *ptr, str[80], tmp[256];
 char last[16];
 
@@ -1653,7 +1659,7 @@ char last[16];
 	strcpy(ptr, tmp);
 }
 
-print_service_float(buff, size)
+void print_service_float(buff, size)
 float *buff;
 int size;
 {
@@ -1688,7 +1694,7 @@ char *ptr, str[80], tmp[256];
 	ptr += strlen(tmp);
 }
 
-print_service_double(buff, size)
+void print_service_double(buff, size)
 double *buff;
 int size;
 {
@@ -1728,13 +1734,11 @@ Widget		w;
 long		tag;
 unsigned long	*reason;
 {
-DNS_SERVER_INFO *ptr;
-DNS_SERVICE_INFO *service_ptr;
 Widget id, sel_id;
 char *str, *pstr;
 void recv_service_info();
-FILE *fptr;
 void did_prepare_command();
+void show_servers();
 
 /*
 	if(tag == 5)
@@ -1924,6 +1928,7 @@ static int last_size = 0;
 static void *last_buffer = 0;
 void *buffer_ptr;
 char *str_ptr;
+void did_read_string();
 
    str_ptr = str; 
    ptr = Curr_service_format; 
@@ -1936,7 +1941,7 @@ char *str_ptr;
 	 size = get_type_size(type);
 	 sscanf(ptr, "%d", &num);
 	 full_size += size * num;
-	 if(ptr = strchr(ptr,';'))
+	 if( (ptr = strchr(ptr,';')) )
 	   ptr++;
 	 else
 	   break;
@@ -1963,7 +1968,7 @@ char *str_ptr;
 	 did_read_string(type, num, &buffer_ptr, &str_ptr);  
 	 if(!str_ptr)
 	     break;
-	 if(ptr = strchr(ptr,';'))
+	 if( (ptr = strchr(ptr,';')) )
 	   ptr++;
 	 else
 	   break;
@@ -1996,15 +2001,15 @@ int read_str_char(char *str, char *cc)
   else if(str[0] == '\"')
     return(0);
   else if((str[0] == '0') && (str[1] == 'x'))
-    sscanf(str+2,"%x",cc);
+    sscanf(str+2,"%x",(int *)cc);
   else if(isalpha(str[0]))
     return(-1);
   else
-    sscanf(str,"%d",cc);
+    sscanf(str,"%d",(int *)cc);
   return(1);
 }
 
-did_read_string(type, num, buffer_ptr, str_ptr)
+void did_read_string(type, num, buffer_ptr, str_ptr)
 char type;
 int num;
 void **buffer_ptr;
@@ -2032,7 +2037,7 @@ char cc;
       {
 	*(int *)ptr = read_str_int(strp);
 	ptr = (int *)ptr +1;
-	if(strp = strchr(strp,' '))
+	if( (strp = strchr(strp,' ')) )
 	  strp++;
 	else
 	  break;
@@ -2045,7 +2050,7 @@ char cc;
 	s = (short)read_str_int(strp);
 	*((short *)ptr) = s;
 	ptr = (short *)ptr +1;
-	if(strp = strchr(strp,' '))
+	if( (strp = strchr(strp,' ')) )
 	  strp++;
 	else
 	  break;
@@ -2058,7 +2063,7 @@ char cc;
 	sscanf(strp,"%f",&ff);
 	*(float *)ptr = ff;
 	ptr = (float *)ptr +1;
-	if(strp = strchr(strp,' '))
+	if( (strp = strchr(strp,' ')) )
 	  strp++;
 	else
 	  break;
@@ -2072,7 +2077,7 @@ char cc;
 	dd = (double)ff;
 	*(double *)ptr = dd;
 	ptr = (double *)ptr +1;
-	if(strp = strchr(strp,' '))
+	if( (strp = strchr(strp,' ')) )
 	  strp++;
 	else
 	  break;
@@ -2087,7 +2092,7 @@ char cc;
 	  break;
 	*(char *)ptr = cc;
 	ptr = (char *)ptr +1;
-	if(strp = strchr(strp,' '))
+	if( (strp = strchr(strp,' ')) )
 	  strp++;
 	else
 	  break;
@@ -2100,13 +2105,13 @@ char cc;
 	}
 	num = strlen(strp)+1;
 	strncpy((char *)ptr,strp,num);
-	if(ptr1 = (char *)strchr((char *)ptr,'\"'))
+	if( (ptr1 = (char *)strchr((char *)ptr,'\"')) )
 	{
 	  num--;
 	  *ptr1 = '\0';
 	}
 	ptr = (char *)ptr + num;
-	if(strp = strchr(strp,' '))
+	if( (strp = strchr(strp,' ')) )
 	  strp++;
 	else
 	  break;
@@ -2121,6 +2126,7 @@ Widget		w;
 long		tag;
 unsigned long	*reason;
 {
+	void print_service_formatted();
 
 	if(tag == MAX_POP_UPS+1)
 	{
@@ -2202,9 +2208,8 @@ unsigned long	*reason;
 		Content_label_id = w;
 }
 
-switch_matrix()
+void switch_matrix()
 {
-	int width = 0, height = 0;
 	/*
 	XtUnmanageChild(Matrix_id[Curr_matrix]);
 	Curr_matrix = (Curr_matrix) ? 0 : 1;
@@ -2213,20 +2218,15 @@ switch_matrix()
 	XmScrolledWindowSetAreas(Window_id,NULL, NULL, Matrix_id[Curr_matrix]); 
 }
 
+/*
 static int curr_allocated_size = 0;
 static DNS_SERVER_INFO *dns_info_buffer;
+*/
 
 void update_servers_new(tag, buffer, size)
 int *tag,*size;
 char *buffer;
 {
-int n_services, service_size;
-SERVER *servp;
-DNS_SERVER_INFO *server_ptr;
-DNS_SERVICE_INFO *service_ptr;
-int i, j, found = 0;
-Widget w;
-char str[MAX_NAME];
 
  printf("Server_list:\n%s\n",buffer);
 }
@@ -2239,7 +2239,7 @@ SERVER *find_server(node, pid)
   DNS_SERVER_INFO *ptr;
 
   servp = Server_head;
-  while(servp = (SERVER *)sll_get_next((SLL *)servp))
+  while( (servp = (SERVER *)sll_get_next((SLL *)servp)) )
     {
       ptr = &servp->server;
       if((ptr->pid == pid) && (!strcmp(ptr->node,node)))
@@ -2261,10 +2261,7 @@ DNS_DID *buffer;
 {
 int n_services, service_size;
 SERVER *servp;
-DNS_SERVER_INFO *server_ptr;
-DNS_SERVICE_INFO *service_ptr;
-int i, j, found = 0;
-Widget w;
+int j;
 char str[MAX_NAME], sname[MAX_NAME], *ptr;
 
 
@@ -2279,6 +2276,8 @@ char str[MAX_NAME], sname[MAX_NAME], *ptr;
 		First_time = 0;
 	}
 
+	if(!*size)
+		return;
 	if(*(char *)buffer == -1)
 	{
 		N_servers = 0;
@@ -2302,12 +2301,15 @@ char str[MAX_NAME], sname[MAX_NAME], *ptr;
 				buffer->services[j].status);
 			buffer->services[j].n_clients = vtohl(
 				buffer->services[j].n_clients);
-			strcpy(str,buffer->services[j].name);
-			if(ptr = strstr(str,"/CLIENT_LIST"))
-			  {
-			    *ptr = '\0';
-			    strcpy(sname,str);
-			  }
+			if(strlen(sname) == MAX_TASK_NAME-4-1)
+			{
+				strcpy(str,buffer->services[j].name);
+				if( (ptr = strstr(str,"/CLIENT_LIST")) )
+				{
+					*ptr = '\0';
+					strcpy(sname,str);
+				}
+			}
 		}
 	}
 	if (!(servp = find_server(buffer->server.node,buffer->server.pid)))
@@ -2372,25 +2374,23 @@ char str[MAX_NAME], sname[MAX_NAME], *ptr;
 	}
 }
 
-show_servers()
+void show_servers()
 {
-DNS_SERVER_INFO *server_ptr;
-DNS_SERVICE_INFO *service_ptr;
-int i, j, found;
 SERVER *servp;
-char str[MAX_NAME];
 void update_show_servers();
+void remove_all_buttons();
+void put_label();
 
 	if(!Matrix_id[Curr_matrix])
 		return;
 	remove_all_buttons();
-       
+	
 #ifndef linux	
 	switch_matrix();
 #endif
 	put_label();
 	servp = Server_head;
-	while(servp = (SERVER *)sll_get_next((SLL *)servp))
+	while( (servp = (SERVER *)sll_get_next((SLL *)servp)) )
 	{
 	  servp->busy = 1;
 	}
@@ -2403,12 +2403,13 @@ void update_show_servers(tag, reason)
 {
 DNS_SERVER_INFO *server_ptr;
 DNS_SERVICE_INFO *service_ptr;
-int i, j, found, n_done = 0;
+int j, found, n_done = 0;
 Widget w, create_button();
 SERVER *servp, *prevp;
-char str[MAX_NAME];
 static int old_n_services = 0;
-
+void remove_button();
+void remove_all_buttons();
+void put_label();
 
     DISABLE_AST
     if((N_services != old_n_services) || (Force_update))
@@ -2454,7 +2455,7 @@ static int old_n_services = 0;
         }
 	servp = Server_head;
 	prevp = 0;
-	while(servp = (SERVER *)sll_get_next((SLL *)servp))
+	while( (servp = (SERVER *)sll_get_next((SLL *)servp)) )
 	{
 		if(prevp)
 		{
@@ -2575,12 +2576,12 @@ Arg arglist[10];
 int n, n_services = -1;
 Widget w, ww, w_id;
 void activate_services(), activate_clients();
-char w_name[40];
+char w_name[MAX_NAME];
 	
 	w_name[0] = 0;
 	if(servp)
 		n_services = servp->server.n_services;
-       	strcpy(w_name,name);
+    strcpy(w_name,name);
 	if(strlen(w_name) >= MAX_TASK_NAME - 4)
 	  w_name[16] = '\0';
 	n = 0;
@@ -2649,12 +2650,12 @@ char w_name[40];
 	return(w_id);
 }
 
-remove_all_buttons()
+void remove_all_buttons()
 {
 SERVER *servp;
 
 	servp = Server_head;
-	while(servp = (SERVER *)sll_get_next((SLL *)servp))
+	while( (servp = (SERVER *)sll_get_next((SLL *)servp)) )
 	{
 		if(servp->button_id)
 		{
@@ -2665,7 +2666,7 @@ SERVER *servp;
 	}
 }
 
-remove_button(servp)
+void remove_button(servp)
 SERVER *servp;
 {
 
@@ -2683,7 +2684,6 @@ SERVER		*servp;
 unsigned long	*reason;
 {
 DNS_SERVER_INFO *ptr;
-int i;
 char str[MAX_NAME];
 Widget id,sel_id;
 void got_service_list();
@@ -2716,7 +2716,7 @@ void kick_it();
 
 	id = XmSelectionBoxGetChild(sel_id,XmDIALOG_LIST);
 	Curr_service_list_id = id;
-	
+
 	XmListAddItem(id,create_str(
           "Ordering services alphabeticaly, please be patient..."),1);
 
@@ -2779,6 +2779,7 @@ char *curr_str, max_str[MAX_NAME], *sptr;
 DID_SLOT *service_list;
 int i, j, curr_index, n_services;
 XmString xstr;
+void delete_str();
 
 	ptr = &servp->server;
 	id = Curr_service_list_id;
@@ -2863,12 +2864,11 @@ void do_show_clients();
 void do_show_clients(servp)
      SERVER *servp;
 {
-char *dns_client_info;
 int i = 0;
 char str[2048], *strp, *strp1;
 DNS_SERVER_INFO *ptr;
-Widget id,sel_id;
 XmString xstr;
+void delete_str();
 
 	ptr = &servp->server;
 	/*
@@ -2905,7 +2905,7 @@ XmString xstr;
 		strcat(str,strp);
 		strcat(str," on node ");
 		strp = strp1;
-		if(strp1 = strchr(strp,'|'))
+		if( (strp1 = strchr(strp,'|')) )
 		{
 			*strp1 = '\0';
 			strp1++;
@@ -2939,7 +2939,6 @@ unsigned long	*reason;
 {
 DNS_SERVER_INFO *ptr;
 char str[100];
-int i;
 void show_clients();
 void kick_it_again();
 Widget id,sel_id;
@@ -3002,8 +3001,10 @@ SERVER *servp;
 char *title;
 int type;
 {
-    Widget id, aux_id;
+    Widget id;
     void activate_services(), activate_clients();
+	extern void set_title();
+
 		if(type)
 		{
 		    id = create_client_dialog();
@@ -3033,6 +3034,8 @@ int tag;
 char *title;
 {
     Widget id;
+	extern void set_title();
+
     if(pop_widget_id[tag])
       {
 	XtDestroyWidget(pop_widget_id[tag]);
@@ -3066,7 +3069,8 @@ void check_put_label(tag)
 int tag;
 {
 	static int old_n_services = 0;
-	static int changing = 0; 
+	static int changing = 0;
+	void put_label();
 
 	if(N_services != old_n_services)
 	{
@@ -3091,7 +3095,7 @@ int tag;
 */
 }
 
-put_label()
+void put_label()
 {
 	char str[MAX_NAME], str1[MAX_NAME];
 			
@@ -3346,7 +3350,7 @@ int n;
 
 Widget create_service_dialog()
 {
-Widget fd, rc, sw, lb, rc1, rc2, rc3, bt;
+Widget fd, rc, sw, lb, rc1;
 XmString xm1;
 Arg ar[20];
 int n, par, reason;

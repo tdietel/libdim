@@ -13,17 +13,24 @@
 #define DEBUG
 */
 
+/* Modifies the number of open connections to 8192 for Windows and Linux */
+/* Can not be moved from here ! */
+#include <dim_tcpip.h>
+
 #ifdef WIN32
-#define FD_SETSIZE      1024
 #define ioctl ioctlsocket
 
-#define closesock closesocket
+#define closesock myclosesocket
 #define readsock recv
 #define writesock send
 
 #define EINTR WSAEINTR
 #define EADDRNOTAVAIL WSAEADDRNOTAVAIL
 #define EWOULDBLOCK WSAEWOULDBLOCK
+#define ECONNREFUSED WSAECONNREFUSED
+#define HOST_NOT_FOUND	WSAHOST_NOT_FOUND
+#define NO_DATA	WSANO_DATA
+
 #else
 /*
 #define closesock(s) shutdown(s,2);
@@ -44,9 +51,9 @@
 typedef int pid_t;
 #endif
 #endif
-#include <sys/types.h>
+
+#include <ctype.h>
 #include <sys/socket.h>
-#include <sys/time.h>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -66,10 +73,13 @@ typedef int pid_t;
 static int Threads_on = 0;
 
 static int init_done = FALSE;		/* Is this module initialized? */
-static int	queue_id;
-static struct sockaddr_in DIM_sockname;
+static int	queue_id = 0;
 
-static int DIM_IO_path[2];
+#ifdef WIN32
+static struct sockaddr_in DIM_sockname;
+#endif
+
+static int DIM_IO_path[2] = {0,0};
 static int DIM_IO_valid = 1;
 
 static int Write_timeout = 5;
@@ -117,25 +127,33 @@ int init_sock()
 	sock_init_done = 1;
 	return(1);
 }
+
+int myclosesocket(int path)
+{
+	int code, ret;
+	code = WSAGetLastError();
+	ret = closesocket(path);
+	WSASetLastError(code);
+	return ret;
+}
 #endif
 
 int dim_tcpip_init(thr_flag)
 int thr_flag;
 {
 #ifdef WIN32
-	int tid;
+	int addr, flags = 1;
 /*
     void tcpip_task();
 */
-	void create_io_thread();
+	void create_io_thread(void);
 #else
 	struct sigaction sig_info;
-	sigset_t set, set1;
+	sigset_t set;
 	void io_sig_handler();
 	void dummy_io_sig_handler();
 	void tcpip_pipe_sig_handler();
 #endif
-	int ret, i, addr, flags = 1;
 
 	if(init_done) return(1);
 #ifdef WIN32
@@ -184,21 +202,29 @@ int thr_flag;
 	if(Threads_on)
 	{
 #ifdef WIN32
-		if( (DIM_IO_path[0] = socket(AF_INET, SOCK_STREAM, 0)) == -1 ) 
+		if(!DIM_IO_path[0])
 		{
-			perror("socket");
-			return(0);
+			if( (DIM_IO_path[0] = socket(AF_INET, SOCK_STREAM, 0)) == -1 ) 
+			{
+				perror("socket");
+				return(0);
+			}
+		
+			DIM_sockname.sin_family = PF_INET;
+			addr = 0;
+			DIM_sockname.sin_addr = *((struct in_addr *) &addr);
+			DIM_sockname.sin_port = htons((ushort) 2000); 
+			ioctl(DIM_IO_path[0], FIONBIO, &flags);
 		}
-		DIM_sockname.sin_family = PF_INET;
-		addr = 0;
-		DIM_sockname.sin_addr = *((struct in_addr *) &addr);
-		DIM_sockname.sin_port = htons((ushort) 2000); 
-		ioctl(DIM_IO_path[0], FIONBIO, &flags);
 #else
-		pipe(DIM_IO_path);
+		if(!DIM_IO_path[0])
+		{
+			pipe(DIM_IO_path);
+		}
 #endif
 	}
-	queue_id = dtq_create();
+	if(!queue_id)
+		queue_id = dtq_create();
 
 #ifdef WIN32
 /*
@@ -215,11 +241,26 @@ int thr_flag;
 	return(1);
 }
 
+void dim_tcpip_stop()
+{
+#ifdef WIN32
+	closesock(DIM_IO_path[0]);
+#else
+	close(DIM_IO_path[0]);
+	close(DIM_IO_path[1]);
+#endif
+	DIM_IO_path[0] = 0;
+	DIM_IO_path[1] = 0;
+	init_done = 0;
+}
+
 static int enable_sig(conn_id)
 int conn_id;
 {
-	int pid, ret = 1, flags = 1;
-	int addr;
+	int ret = 1, flags = 1;
+#ifndef WIN32
+	int pid;
+#endif
 
 #ifdef DEBUG
 	if(!Net_conns[conn_id].channel)
@@ -237,9 +278,10 @@ int conn_id;
 	{
 #ifdef WIN32
 		DIM_IO_valid = 0;
-		ret = connect(DIM_IO_path[0], (struct sockaddr*)&DIM_sockname, sizeof(DIM_sockname));
+//		ret = connect(DIM_IO_path[0], (struct sockaddr*)&DIM_sockname, sizeof(DIM_sockname));
 
-		closesock(DIM_IO_path[0]);	  
+		closesock(DIM_IO_path[0]);
+		DIM_IO_path[0] = 0;
 		if( (DIM_IO_path[0] = socket(AF_INET, SOCK_STREAM, 0)) == -1 ) 
 		{
 			perror("socket");
@@ -301,6 +343,7 @@ int conn_id;
 	return(1);
 }
 
+/*
 static void dump_list()
 {
 	int	i;
@@ -311,6 +354,7 @@ static void dump_list()
 				i, Net_conns[i].reading );
 		}
 }
+*/
 
 static int list_to_fds( fds )
 fd_set *fds;
@@ -355,6 +399,8 @@ int *conn_id;
 	return 0;
 }
 
+#ifndef __linux__
+
 static void tcpip_test_write( conn_id )
 int conn_id;
 {
@@ -374,16 +420,43 @@ int conn_id;
 	}
 }
 
-tcpip_set_test_write(conn_id, timeout)
+#else
+
+void tcpip_set_keepalive( channel, tmout )
+int channel, tmout;
+{
+   int val;
+
+   /* Enable keepalive for the given channel */
+   val = 1;
+   setsockopt(channel, SOL_SOCKET, SO_KEEPALIVE, (char*)&val, sizeof(val));
+
+   /* Set the keepalive poll interval to something small.
+      Warning: this section may not be portable! */
+   val = tmout;
+   setsockopt(channel, IPPROTO_TCP, TCP_KEEPIDLE, (char*)&val, sizeof(val));
+   val = 3;
+   setsockopt(channel, IPPROTO_TCP, TCP_KEEPCNT, (char*)&val, sizeof(val));
+   val = 2;
+   setsockopt(channel, IPPROTO_TCP, TCP_KEEPINTVL, (char*)&val, sizeof(val));
+}
+
+#endif
+
+void tcpip_set_test_write(conn_id, timeout)
 int conn_id, timeout;
 {
+#ifndef __linux__
 	Net_conns[conn_id].timr_ent = dtq_add_entry( queue_id, timeout, 
 		tcpip_test_write, conn_id );
 	Net_conns[conn_id].timeout = timeout;
 	Net_conns[conn_id].last_used = time(NULL);
+#else
+	tcpip_set_keepalive(Net_conns[conn_id].channel, timeout);
+#endif
 }
 
-tcpip_rem_test_write(conn_id)
+void tcpip_rem_test_write(conn_id)
 int conn_id;
 {
 	if(Net_conns[conn_id].timr_ent)
@@ -428,7 +501,7 @@ int conn_id;
 {
 	/* There is 'data' pending, read it.
 	 */
-	int	len, ret, totlen, size, count;
+	int	len, totlen, size, count;
 	char	*p;
 /*
 	count = get_bytes_to_read(conn_id);
@@ -522,8 +595,8 @@ printf("TCPIP got %d.%d.%d.%d \n",
 void io_sig_handler(num)
 int num;
 {
-    fd_set	rfds, wfds, efds;
-    int	i, conn_id, ret, selret, count;
+    fd_set	rfds;
+    int	conn_id, ret, selret, count;
 	struct timeval	timeout;
 
 	do
@@ -534,7 +607,7 @@ int num;
 		selret = select(FD_SETSIZE, &rfds, NULL, NULL, &timeout);
 		if(selret > 0)
 		{
-			while( ret = fds_get_entry( &rfds, &conn_id ) > 0 ) 
+			while( (ret = fds_get_entry( &rfds, &conn_id )) > 0 ) 
 			{
 				if( Net_conns[conn_id].reading )
 				{
@@ -552,7 +625,7 @@ int num;
 				{
 					do_accept( conn_id );
 				}
-				FD_CLR( Net_conns[conn_id].channel, &rfds );
+				FD_CLR( (unsigned)Net_conns[conn_id].channel, &rfds );
 	    	}
 		}
 	}while(selret > 0);
@@ -564,7 +637,10 @@ void tcpip_task( void *dummy)
 	 * call the right routine to handle the situation.
 	 */
 	fd_set	rfds, efds, *pfds;
-	int	conn_id, ret, rcount, count, data;
+	int	conn_id, ret, count;
+#ifndef WIN32
+	int data;
+#endif
 
 	while(1)
 	{
@@ -587,11 +663,11 @@ void tcpip_task( void *dummy)
 #ifndef WIN32
 				read(DIM_IO_path[0], &data, 4);
 #endif
-				FD_CLR( DIM_IO_path[0], pfds );
+				FD_CLR( (unsigned)DIM_IO_path[0], pfds );
 			  }
 			{
 			DISABLE_AST
-			while( ret = fds_get_entry( &rfds, &conn_id ) > 0 ) 
+			while( (ret = fds_get_entry( &rfds, &conn_id )) > 0 ) 
 			{
 				if( Net_conns[conn_id].reading )
 				{
@@ -609,7 +685,7 @@ void tcpip_task( void *dummy)
 				{
 					do_accept( conn_id );
 				}
-				FD_CLR( Net_conns[conn_id].channel, &rfds );
+				FD_CLR( (unsigned)Net_conns[conn_id].channel, &rfds );
 			}
 			ENABLE_AST
 			}
@@ -625,7 +701,6 @@ int size, conn_id;
 char *buffer;
 void (*ast_routine)();
 {
-	int pid, ret = 1, flags = 1;
 	/* Install signal handler stuff on the socket, and record
 	 * some necessary information: we are reading, and want size
 	 * as size, and use buffer.
@@ -648,6 +723,49 @@ void (*ast_routine)();
 	return(1);
 }
 
+int check_node_addr( node, ipaddr)
+char *node;
+unsigned char *ipaddr;
+{
+unsigned char *ptr;
+int ret;
+
+	ptr = (unsigned char *)node+strlen(node)+1;
+    ipaddr[0] = *ptr++;
+    ipaddr[1] = *ptr++;
+    ipaddr[2] = *ptr++;
+    ipaddr[3] = *ptr++;
+	if( (ipaddr[0] == 0xff) &&
+		(ipaddr[1] == 0xff) &&
+		(ipaddr[2] == 0xff) &&
+		(ipaddr[3] == 0xff) )
+	{
+		errno = ECONNREFUSED;	/* fake an error code */
+#ifdef WIN32
+		WSASetLastError(errno);
+#endif
+		return(0);
+	}
+	if( gethostbyaddr(ipaddr, sizeof(ipaddr), AF_INET) == (struct hostent *)0 )
+	{
+#ifndef WIN32
+		ret = h_errno;
+#else
+		ret = WSAGetLastError();
+#endif
+		if((ret == HOST_NOT_FOUND) || (ret == NO_DATA))
+				return(0);
+/*		
+		errno = ECONNREFUSED;
+#ifdef WIN32
+		WSASetLastError(errno);
+#endif
+		return(0);
+*/
+	}
+	return(1);
+}
+
 int tcpip_open_client( conn_id, node, task, port )
 int conn_id;
 char *node, *task;
@@ -662,11 +780,10 @@ int port;
 #else
 	int host_addr;
 #endif
-	int path, par, val, ret_code, ret;
+	int path, val, ret_code, ret;
 	int a,b,c,d;
-	unsigned char ipaddr[4], *ptr;
+	unsigned char ipaddr[4];
 	int host_number = 0;
-	char test[64];
 
     dim_tcpip_init(0);
 	if(isdigit(node[0]))
@@ -677,10 +794,29 @@ int port;
 	    ipaddr[2] = c;
 	    ipaddr[3] = d;
 	    host_number = 1;
+#ifndef VxWorks
+		if( gethostbyaddr(ipaddr, sizeof(ipaddr), AF_INET) == (struct hostent *)0 )
+		{
+#ifndef WIN32
+			ret = h_errno;
+#else
+			ret = WSAGetLastError();
+#endif
+			if((ret == HOST_NOT_FOUND) || (ret == NO_DATA))
+			{
+				if(!check_node_addr(node, ipaddr))
+					return(0);
+			}
+		}
+#endif
 	}
 #ifndef VxWorks
 	else if( (host = gethostbyname(node)) == (struct hostent *)0 ) 
 	{
+		if(!check_node_addr(node, ipaddr))
+			return(0);
+		host_number = 1;
+/*
           ptr = (unsigned char *)node+strlen(node)+1;
           ipaddr[0] = *ptr++;
           ipaddr[1] = *ptr++;
@@ -692,8 +828,21 @@ int port;
 			  (ipaddr[2] == 0xff) &&
 			  (ipaddr[3] == 0xff) )
 		  {
+			  errno = ECONNREFUSED;
+#ifdef WIN32
+			  WSASetLastError(errno);
+#endif
 			  return(0);
 		  }
+		  if( gethostbyaddr(ipaddr, sizeof(ipaddr), AF_INET) == (struct hostent *)0 )
+		  {
+			  errno = ECONNREFUSED;
+#ifdef WIN32
+			  WSASetLastError(errno);
+#endif
+			  return(0);
+		  }
+*/
 	}
 #else
 	*(strchr(node,'.')) = '\0';
@@ -741,6 +890,17 @@ int port;
 		return(0);
 	}
 
+#ifdef __linux__
+	val = 2;
+	if ((ret_code = setsockopt(path, IPPROTO_TCP, TCP_SYNCNT, 
+			(char*)&val, sizeof(val))) == -1 ) 
+	{
+#ifdef DEBUG
+		printf("Couln't set TCP_SYNCNT\n");
+#endif
+	}
+#endif
+
 	sockname.sin_family = PF_INET;
 #ifndef VxWorks
     if(host_number)
@@ -772,7 +932,6 @@ int port;
 	return(1);
 }
 
-
 int tcpip_open_server( conn_id, task, port )
 int conn_id, *port;
 char *task;
@@ -781,7 +940,7 @@ char *task;
 	 * find a free port on this node.
 	 */
 	struct sockaddr_in sockname;
-	int path, par, val, ret_code, ret;
+	int path, val, ret_code, ret;
 
     dim_tcpip_init(0);
 	if( (path = socket(AF_INET, SOCK_STREAM, 0)) == -1 ) 
@@ -835,9 +994,19 @@ char *task;
 			if( *port > STOP_PORT_RANGE ) {
 				errno = EADDRNOTAVAIL;	/* fake an error code */
 				closesock(path);
+#ifdef WIN32
+				WSASetLastError(errno);
+#endif
 				return(0);
 			}
+			ret = bind(path, (struct sockaddr*)&sockname, sizeof(sockname));
+/*
+printf("Trying port %d, ret = %d\n", *port, ret);
+*/
+		} while( ret == -1 );
+/*
 		} while( bind(path, (struct sockaddr*)&sockname, sizeof(sockname)) == -1 );
+*/
 	} else {
 #ifndef WIN32
 		val = 1;
@@ -861,7 +1030,7 @@ char *task;
 		}
 	}
 
-	if( (ret = listen(path, 256)) == -1 )
+	if( (ret = listen(path, 16)) == -1 )
 	{
 		closesock(path);
 		return(0);
@@ -882,7 +1051,6 @@ int tcpip_start_listen( conn_id, ast_routine )
 int conn_id;
 void (*ast_routine)();
 {
-	int pid, ret=1, flags = 1;
 	/* Install signal handler stuff on the socket, and record
 	 * some necessary information: we are NOT reading, thus
 	 * no size.
@@ -911,7 +1079,7 @@ int conn_id, path;
 	/* Fill in/clear some fields, the node and task field
 	 * get filled in later by a special packet.
 	 */
-	int par, val, ret_code;
+	int val, ret_code;
 
 
 	val = 1;
@@ -1022,6 +1190,7 @@ char *buffer;
 
 	struct timeval	timeout;
 	fd_set wfds;
+	int tcpip_would_block();
 	
 	set_non_blocking(Net_conns[conn_id].channel);
 	wrote = writesock( Net_conns[conn_id].channel, buffer, size, 0 );
@@ -1097,6 +1266,8 @@ int code;
 #ifndef WIN32
 	perror("tcpip");
 #else
+	int my_perror();
+
 	my_perror("tcpip", code);
 #endif
 }

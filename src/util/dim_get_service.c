@@ -9,7 +9,7 @@ char str[132];
 int type, mode;
 int received = 0;
 
-rout(tag, buffer, size)
+void rout(tag, buffer, size)
 int *tag, *size;
 int *buffer;
 {
@@ -31,7 +31,7 @@ void print_service();
 #endif
 }
 
-main(argc,argv)
+int main(argc,argv)
 int argc;
 char **argv;                    
 {
@@ -49,12 +49,13 @@ char **argv;
 	dic_info_service(str,ONCE_ONLY,60,0,0,rout,0,&no_link,4);
 	while(!received)
 	  dim_wait();
+	return(1);
 }
 
 void print_service(buff, size)
 int *buff, size;
 {
-int i,j, str_flag = 0;
+int i,j;
 char *asc;
 int last[4];
 

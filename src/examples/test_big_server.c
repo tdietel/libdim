@@ -11,7 +11,7 @@ char **argv;
 	char name[64];
 	int ids[MAX_SERVICES];
 /*
-	dim_set_dns_node("lxplus059.cern.ch");
+	dic_set_dns_node("lxplus059.cern.ch");
 */
   for(i = 0; i< MAX_SERVICES; i++)
 	{

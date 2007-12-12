@@ -14,6 +14,10 @@
 #include <dim.h>
 #include <dis.h>
 
+#ifndef WIN32
+#include <netdb.h>
+#endif
+
 #define MAX_HASH_ENTRIES 5000
 FILE	*foutptr;
 
@@ -72,12 +76,15 @@ static int Debug = TRUE;
 static int Debug = FALSE;
 
 static int Timer_q;
-static int Service_info_id, Server_info_id, Server_new_info_id, 
+static int Server_info_id, Server_new_info_id, 
 		   Rpc_id, wake_up;
 
 static char RPC_dummy = 0;
 static char *Rpc_info = &RPC_dummy;
 static int Rpc_info_size = 0;
+
+static char DNS_accepted_domains[1024] = {0};
+static char DNS_accepted_nodes[1024] = {0};
 
 _DIM_PROTO( DNS_SERVICE *service_exists, (char *name) );
 _DIM_PROTO( void check_validity,         (int conn_id) );
@@ -97,6 +104,8 @@ static void recv_rout( conn_id, packet, size, status )
 int conn_id, size, status;
 DIC_DNS_PACKET *packet;
 {
+	int handle_registration();
+	int handle_client_request();
 
 	switch(status)
 	{
@@ -164,7 +173,7 @@ char *reason;
 */
 }
 
-handle_registration( conn_id, packet, tmout_flag )
+int handle_registration( conn_id, packet, tmout_flag )
 int conn_id;
 DIS_DNS_PACKET *packet;
 int tmout_flag;
@@ -175,10 +184,17 @@ int tmout_flag;
 	int format;
 	DNS_CONNECTION *connp;
 	int n_services;
-	void do_inform_clients();
-	char accepted_domains[256];
 	char *ptr, *ptr1;
 	int found;
+	void do_update_did();
+	void do_inform_clients();
+	void inform_clients();
+	void service_init();
+	void service_insert();
+	void service_remove();
+#ifdef WIN32
+	extern int time();
+#endif
 
 	Dns_conns[conn_id].validity = time(NULL);
 	if( !Dns_conns[conn_id].service_head ) 
@@ -202,9 +218,15 @@ int tmout_flag;
 		Dns_conns[conn_id].pid = vtohl(packet->pid);
 		Dns_conns[conn_id].port = vtohl(packet->port);
 
-		if(get_dns_accepted_domains(accepted_domains))
+		if(strcmp(Dns_conns[conn_id].task_name,"DIS_DNS"))
+		if(DNS_accepted_domains[0] == 0)
 		{
-			ptr = accepted_domains;
+			if(!get_dns_accepted_domains(DNS_accepted_domains))
+				DNS_accepted_domains[0] = -1;
+		}
+		if((DNS_accepted_domains[0] != -1) && (strcmp(Dns_conns[conn_id].task_name,"DIS_DNS")))
+		{
+			ptr = DNS_accepted_domains;
 			found = 0;
 			while(*ptr)
 			{
@@ -250,11 +272,15 @@ int tmout_flag;
 			Dns_conns[conn_id].timr_ent = dtq_add_entry( Timer_q,
 				(int)(WATCHDOG_TMOUT_MAX * 1.3), check_validity, conn_id);
 		if(strcmp(Dns_conns[conn_id].task_name,"DIS_DNS"))
+		{
 			dna_set_test_write(conn_id, 10);
-		Dns_conns[conn_id].old_n_services = 1;
+		}
+		Dns_conns[conn_id].old_n_services = 0;
 		Dns_conns[conn_id].n_services = 1;
 		do_update_did(conn_id);
+/*
 		Dns_conns[conn_id].old_n_services = 0;
+*/
 		Dns_conns[conn_id].n_services = 0;
 	} 
 	else 
@@ -282,7 +308,7 @@ int tmout_flag;
 				break;
 			}
 		}
-		if(servp = service_exists(packet->services[i].service_name))
+		if( (servp = service_exists(packet->services[i].service_name)) )
 		{
 			/* if service available on another server send kill signal */
 			if((servp->conn_id) && (servp->conn_id != conn_id))
@@ -467,11 +493,13 @@ printf(" Service %s already declared by conn %d - %s@%s:%d, killing server conn 
 			fflush(stdout);
 		}
 	}
+	return(1);
 }	
 
-update_did()
+void update_did()
 {
 	int i;
+	void do_update_did();
 
 	for(i = 0; i< Curr_N_Conns; i++)
 	{
@@ -482,18 +510,26 @@ update_did()
 	}
 }
 
-do_update_did(int conn_id)
+void do_update_did(int conn_id)
 {
+	int n_services;
+
+	n_services = Dns_conns[conn_id].n_services;
+/*
 	if(Dns_conns[conn_id].n_services)
 	{
-		if(Dns_conns[conn_id].old_n_services != Dns_conns[conn_id].n_services)
+*/
+		if(Dns_conns[conn_id].old_n_services != n_services)
 		{
 			Last_conn_id = conn_id;
-			dis_update_service(Server_new_info_id);
+			if((n_services == 1) || (n_services == 0) || (n_services == -1))
+				dis_update_service(Server_new_info_id);
 			dis_update_service(Server_info_id);
 			Dns_conns[conn_id].old_n_services = Dns_conns[conn_id].n_services;
 		}
+/*
 	}
+*/
 }
 
 void check_validity(conn_id)
@@ -501,6 +537,7 @@ int conn_id;
 {
 	int time_diff;
 	DNS_DIS_PACKET dis_packet;
+	void set_in_error();
 
 	if(Dns_conns[conn_id].validity < 0)
 	{
@@ -534,7 +571,7 @@ int conn_id;
 }		
 
 
-handle_client_request( conn_id, packet )
+int handle_client_request( conn_id, packet )
 int conn_id;
 DIC_DNS_PACKET *packet;
 {
@@ -544,7 +581,11 @@ DIC_DNS_PACKET *packet;
 	int i, service_id;
 	DNS_DIC_PACKET dic_packet;
 	SERVICE_REG *serv_regp; 
-	char *ptr;
+	void service_insert();
+	void service_remove();
+	void tcpip_get_addresses();
+	char *ptr, *ptr1;
+	int found;
 
 	serv_regp = (SERVICE_REG *)(&(packet->service));
 	if(Debug)
@@ -555,6 +596,61 @@ DIC_DNS_PACKET *packet;
 			serv_regp->service_name);
 		fflush(stdout);
 	}
+
+	if(DNS_accepted_nodes[0] == 0)
+	{
+		if(!get_dns_accepted_nodes(DNS_accepted_nodes))
+			DNS_accepted_nodes[0] = -1;
+	}
+	if(DNS_accepted_nodes[0] != -1)
+	{
+		ptr = DNS_accepted_nodes;
+		found = 0;
+		while(*ptr)
+		{
+			ptr1 = strchr(ptr,',');
+			if(ptr1)
+			{
+				*ptr1 = '\0';
+				ptr1++;
+			}
+			else
+			{
+				ptr1 = ptr;
+				ptr1 += strlen(ptr);
+			}
+			if(strstr(Net_conns[conn_id].node,ptr))
+			{
+				found = 1;
+				break;
+			}
+			ptr = ptr1;
+		}
+		if(!found)
+		{
+			dic_packet.service_id = serv_regp->service_id;
+			dic_packet.node_name[0] = -1; 
+			dic_packet.task_name[0] = 0;
+			dic_packet.node_addr[0] = 0;
+			dic_packet.size = htovl(DNS_DIC_HEADER);
+			if( !dna_write_nowait(conn_id, &dic_packet, DNS_DIC_HEADER) )
+			{
+				dim_print_date_time();
+				printf(" Handle req : Couldn't write, releasing %d\n",conn_id);
+				fflush(stdout);
+				release_conn(conn_id);
+			}
+			dim_print_date_time();
+			printf(" Connection from %s refused, stopping client pid=%s\n",
+					Net_conns[conn_id].node,
+					Net_conns[conn_id].task);
+			fflush(stdout);
+			release_conn(conn_id);
+
+			return 0;
+		}
+	}
+	
 	service_id = vtohl(serv_regp->service_id);
 	if( service_id == -1 )  /* remove service */
 	{
@@ -563,13 +659,13 @@ DIC_DNS_PACKET *packet;
 			printf("\tRemoving Request\n");
 			fflush(stdout);
 		}
-		if( servp = service_exists(serv_regp->service_name) ) 
+		if( (servp = service_exists(serv_regp->service_name))  ) 
 		{
 			red_nodep = servp->node_head;
-			while( red_nodep =
+			while( (red_nodep =
 				(RED_NODE *) dll_get_next(
 						(DLL *) servp->node_head,
-						(DLL *) red_nodep) )
+						(DLL *) red_nodep)) )
 			{
 				if( red_nodep->conn_id == conn_id ) 
 				{
@@ -604,13 +700,13 @@ DIC_DNS_PACKET *packet;
 			printf("\tRemoving Request\n");
 			fflush(stdout);
 		}
-		if( servp = service_exists(serv_regp->service_name) ) 
+		if( (servp = service_exists(serv_regp->service_name)) ) 
 		{
 			red_nodep = servp->node_head;
-			while( red_nodep =
+			while( (red_nodep =
 				(RED_NODE *) dll_get_next(
 						(DLL *) servp->node_head,
-						(DLL *) red_nodep) )
+						(DLL *) red_nodep)) )
 			{
 				if(( red_nodep->conn_id == conn_id ) &&
 				   ( red_nodep->service_id == service_id ) )
@@ -737,6 +833,7 @@ DIC_DNS_PACKET *packet;
 		fflush(stdout);
 		release_conn(conn_id);
 	}
+	return(1);
 }
 
 void do_inform_clients(int conn_id)
@@ -745,6 +842,7 @@ void do_inform_clients(int conn_id)
 	int n_informed = 0;
 	static DNS_SERVICE *prev_servp = (DNS_SERVICE *)0;
 	static int n_times = 0;
+	void inform_clients();
 
 	DISABLE_AST
 	if(!Dns_conns[conn_id].service_head)
@@ -757,9 +855,9 @@ void do_inform_clients(int conn_id)
 		servp = prev_servp;
 	else
 		servp = (DNS_SERVICE *)Dns_conns[conn_id].service_head;
-	while( servp = (DNS_SERVICE *) dll_get_next(
+	while( (servp = (DNS_SERVICE *) dll_get_next(
 				(DLL *) Dns_conns[conn_id].service_head,
-				(DLL *) servp) )
+				(DLL *) servp)) )
 	{
 		if( servp->state != -1 ) 
 		{
@@ -782,19 +880,19 @@ void do_inform_clients(int conn_id)
 }
 
 
-inform_clients(servp)
+void inform_clients(servp)
 DNS_SERVICE *servp;
 {
 	RED_NODE *nodep, *prevp; 
 	NODE *full_nodep; 
 	DNS_DIC_PACKET packet;
 	char *ptr;
-	int i, conn_id;
+	int i;
 
 	nodep = servp->node_head;
 	prevp = nodep;
-	while( nodep = (RED_NODE *) dll_get_next((DLL *) servp->node_head,
-						 (DLL *) prevp) )
+	while( (nodep = (RED_NODE *) dll_get_next((DLL *) servp->node_head,
+						 (DLL *) prevp)) )
 	{
 		packet.service_id = htovl(nodep->service_id);
 		strcpy(packet.node_name, Dns_conns[servp->conn_id].node_name);
@@ -859,6 +957,7 @@ int conn_id;
 	DNS_SERVICE *servp, *old_servp;
 	NODE *nodep, *old_nodep;
 	DNS_CONNECTION *connp;
+	void service_remove();
 
 	connp = &Dns_conns[conn_id];
 	if( Dns_conns[conn_id].src_type == SRC_DIS ) 
@@ -889,9 +988,9 @@ int conn_id;
 			Dns_conns[conn_id].timr_ent = NULL;
 		}
 		servp = (DNS_SERVICE *)Dns_conns[conn_id].service_head;
-		while( servp = (DNS_SERVICE *) dll_get_next(
+		while( (servp = (DNS_SERVICE *) dll_get_next(
 				(DLL *) Dns_conns[conn_id].service_head,
-				(DLL *) servp) )
+				(DLL *) servp)) )
 		{
 			dll_remove((DLL *) servp);
 			if(dll_empty((DLL *) servp->node_head)) 
@@ -913,10 +1012,12 @@ int conn_id;
 		{
 			Dns_conns[conn_id].n_services = 0;
 			
+			do_update_did(conn_id);
+/*
 			Last_conn_id = conn_id;
 			dis_update_service(Server_new_info_id);
-		        dis_update_service(Server_info_id);
-			
+		    dis_update_service(Server_info_id);
+*/			
 		}
 		free((DNS_SERVICE *)Dns_conns[conn_id].service_head);
 		Dns_conns[conn_id].service_head = 0;
@@ -932,11 +1033,11 @@ int conn_id;
 				conn_id, Net_conns[conn_id].task, Net_conns[conn_id].node);
 			fflush(stdout);
 		}
-		if( nodep = (NODE *)Dns_conns[conn_id].node_head ) 
+		if( (nodep = (NODE *)Dns_conns[conn_id].node_head) ) 
 		{
-			while( nodep = (NODE *) dll_get_next(
+			while( (nodep = (NODE *) dll_get_next(
 					(DLL *) Dns_conns[conn_id].node_head,
-					(DLL *) nodep) )
+					(DLL *) nodep)) )
 			{
 				servp = nodep->servp;
 				dll_remove( (DLL *) nodep );
@@ -973,7 +1074,7 @@ int conn_id;
 }
 
 
-set_in_error(conn_id)
+void set_in_error(conn_id)
 {
 	DNS_SERVICE *servp;
 
@@ -982,9 +1083,9 @@ set_in_error(conn_id)
 		if(strcmp(Dns_conns[conn_id].task_name,"DIS_DNS"))
 			dna_rem_test_write(conn_id);
 		servp = (DNS_SERVICE *)Dns_conns[conn_id].service_head;
-		while( servp = (DNS_SERVICE *) dll_get_next(
+		while( (servp = (DNS_SERVICE *) dll_get_next(
 				(DLL *) Dns_conns[conn_id].service_head,
-				(DLL *) servp) )
+				(DLL *) servp)) )
 			servp->state = -1;
 		Dns_conns[conn_id].n_services = -1;
 	}
@@ -996,7 +1097,6 @@ int **bufp;
 int *size;
 int *first_time;
 {
-	int i;
 	
 	if(*first_time)
 	{
@@ -1062,8 +1162,8 @@ int *size;
 	dns_server_info->pid = htovl(connp->pid);
 	dns_server_info->n_services = htovl(connp->n_services);
 	servp = (DNS_SERVICE *)connp->service_head;
-	while( servp = (DNS_SERVICE *) dll_get_next((DLL *) connp->service_head,
-						    (DLL *) servp) )
+	while( (servp = (DNS_SERVICE *) dll_get_next((DLL *) connp->service_head,
+						    (DLL *) servp)) )
 	{
 		strncpy(dns_service_info->name, servp->serv_name, MAX_NAME); 
 		dns_service_info->status = htovl(1);
@@ -1089,8 +1189,9 @@ int *first_time;
 	DNS_CONNECTION *connp;
 	int i, max_size, j, n;
 	int n_server = 0;
-	char aux[MAX_NAME], *ptr;
+	char aux[MAX_NAME], *ptr, server[MAX_NAME], *info_buffer_ptr;
 	DNS_SERVICE *servp;
+	int find_services();
 
  	for( i = 0; i< Curr_N_Conns; i++ )
 	{
@@ -1113,6 +1214,7 @@ int *first_time;
 	}
 	info_buffer[0] = '\0';
 
+	info_buffer_ptr = info_buffer;
 	if(*first_time)
 	{
 	 	for( i = 0; i< Curr_N_Conns; i++ )
@@ -1138,13 +1240,17 @@ int *first_time;
 						}
 					}
 					free(Service_info_list);
-					strcat(info_buffer,aux);
+					strcpy(server, aux);
 				}
 				else
-					strcat(info_buffer, connp->task_name);
-				strcat(info_buffer,"@");
-				strcat(info_buffer, connp->node_name);
-				strcat(info_buffer,"|");
+				{
+					strcpy(server, connp->task_name);
+				}
+				strcat(server,"@");
+				strcat(server, connp->node_name);
+				strcat(server,"|");
+				strcpy(info_buffer_ptr, server);
+				info_buffer_ptr += strlen(server);
 			}
 		}
 	}
@@ -1167,7 +1273,7 @@ int *first_time;
 	*size = strlen(info_buffer)+1;
 }
 
-main()
+int main()
 {
 	int i, protocol, dns_port;
 	int *bufp;
@@ -1175,6 +1281,7 @@ main()
 	int conn_id, id;
 	DIS_DNS_PACKET *dis_dns_packet;
 	char node[MAX_NAME];
+	void service_init();
 	
 	dim_init();
 	conn_arr_create( SRC_DNS );
@@ -1227,6 +1334,7 @@ main()
 			}
 		}
 	}
+	return(1);
 }
 
 
@@ -1328,10 +1436,9 @@ void kill_servers()
 }
 
 
-service_init()
+void service_init()
 {
   int i;
-  RED_DNS_SERVICE *ptr;
 
 	for( i = 0; i < MAX_HASH_ENTRIES; i++ ) {
 		Service_hash_table[i] = (RED_DNS_SERVICE *) malloc(8);
@@ -1340,7 +1447,7 @@ service_init()
 }
 
 
-service_insert(servp)
+void service_insert(servp)
 RED_DNS_SERVICE *servp;
 {
 	int index;
@@ -1351,7 +1458,7 @@ RED_DNS_SERVICE *servp;
 }
 
 
-service_remove(servp)
+void service_remove(servp)
 RED_DNS_SERVICE *servp;
 {
 	if( servp->node_head )
@@ -1368,9 +1475,9 @@ char *name;
 	char *ptr;
 
 	index = HashFunction(name, MAX_HASH_ENTRIES);
-	if(servp = (RED_DNS_SERVICE *) dll_search(
+	if( (servp = (RED_DNS_SERVICE *) dll_search(
 					(DLL *) Service_hash_table[index],
-			      		name, strlen(name)+1) )
+			      		name, strlen(name)+1)) )
 	{
 		ptr = (char *)servp - (2 * sizeof(void *));
 		return((DNS_SERVICE *)ptr);
@@ -1403,9 +1510,9 @@ void print_hash_table()
 		fprintf(foutptr,"HASH[%d] : \n",i);
 #endif								 
 		servp = Service_hash_table[i];
-		while( servp = (RED_DNS_SERVICE *) dll_get_next(
+		while( (servp = (RED_DNS_SERVICE *) dll_get_next(
 						(DLL *) Service_hash_table[i],
-						(DLL *) servp) )
+						(DLL *) servp)) )
 		{
 #ifdef VMS
 			fprintf(foutptr,"%s\n",servp->serv_name);
@@ -1445,15 +1552,15 @@ char *wild_name;
 	for( i = 0; i < MAX_HASH_ENTRIES; i++ ) 
 	{
 		servp = Service_hash_table[i];
-		while( servp = (RED_DNS_SERVICE *) dll_get_next(
+		while( (servp = (RED_DNS_SERVICE *) dll_get_next(
 						(DLL *) Service_hash_table[i],
-						(DLL *) servp) )
+						(DLL *) servp)) )
 		{
 			ptr = wild_name;
 			dptr = servp->serv_name;
 			match = 1;
 
-            while(ptr1 = strchr(ptr,'*'))
+            while( (ptr1 = strchr(ptr,'*')) )
 			{
 				if(ptr1 == ptr)
 				{
@@ -1464,11 +1571,11 @@ char *wild_name;
 						break;
 					}
 					strcpy(tmp,ptr);
-					if(ptr1 = strchr(ptr,'*'))
+					if( (ptr1 = strchr(ptr,'*')) )
 					{
 						tmp[ptr1-ptr] = '\0';
 					}
-					if(dptr1 = strstr(dptr, tmp))
+					if( (dptr1 = strstr(dptr, tmp)) )
 					{
 						if(!ptr1)
 						{
@@ -1551,22 +1658,22 @@ char *buffer;
 		if(strstr(servp->serv_name,"/Rpc"))
 		{
 			strcpy(aux,servp->serv_name);
-			if(ptr = strstr(aux,"/RpcIn"))
+			if( (ptr = strstr(aux,"/RpcIn")) )
 			{
 				*ptr = '\0';
 				rpc = 1;
-				if(ptr = strstr(Rpc_info, aux))
+				if( (ptr = strstr(Rpc_info, aux)) )
 				{
 					ptr += strlen(aux);
 					if(*ptr == '|')
 						rpc = 2;
 				}
 			}
-			if(ptr = strstr(aux,"/RpcOut"))
+			if( (ptr = strstr(aux,"/RpcOut")) )
 			{
 				*ptr = '\0';
 				rpc = 1;
-				if(ptr = strstr(Rpc_info, aux))
+				if( (ptr = strstr(Rpc_info, aux)) )
 				{
 					ptr += strlen(aux);
 					if(*ptr == '|')
@@ -1578,14 +1685,14 @@ char *buffer;
 				strcpy(rpcaux, aux);
 				strcat(rpcaux,"|");
 				strcat(aux,"/RpcIn");
-				if( aux_servp = service_exists(aux))
+				if( (aux_servp = service_exists(aux)) )
 				{
 					strcat(rpcaux, aux_servp->serv_def);
 					strcat(rpcaux,",");
 					ptr = strstr(aux,"/RpcIn");
 					*ptr = '\0';
 					strcat(aux,"/RpcOut");
-					if(aux_servp = service_exists(aux))
+					if( (aux_servp = service_exists(aux)) )
 					{
 						strcat(rpcaux,aux_servp->serv_def);
 						strcat(rpcaux,"|RPC\n");

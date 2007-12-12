@@ -21,6 +21,27 @@ public :
 	SimpleService(char *name) : DimInfo(name, -1.0) {};
 };
 
+double no_link_darray[8] = {-1.0,0,0,0,0,0,0,0};
+
+class DimDoubleArray : public DimInfo
+{
+	void infoHandler()
+	{
+		double *data;
+		int i, len;
+
+		data = (double *)getData();
+		len = getSize()/sizeof(double);
+		for(i = 0; i < len; i++)
+		{
+			cout << data[i] << endl;
+		}
+	}
+public :
+	DimDoubleArray(char *name) : DimInfo(name, no_link_darray, 8*sizeof(double)) {};
+};
+
+
 class ComplexService : public DimInfo
 {
 	void infoHandler()
@@ -75,6 +96,7 @@ int main()
 	SimpleService simple("PVSS_SIMPLE_SERVICE");
 	ComplexService complex("PVSS_COMPLEX_SERVICE");
 	RpcService rpc("PVSS_RPC", 10);
+	DimDoubleArray dda("TEST_SRVC");
 
 	while(1)
 	{

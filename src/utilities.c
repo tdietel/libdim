@@ -39,6 +39,9 @@ struct hostent *host;
 #endif
 char *p;
 int	i;
+#ifdef WIN32
+extern void init_sock();
+#endif
 
 	DISABLE_AST
 #ifdef WIN32
@@ -50,30 +53,32 @@ int	i;
 		ENABLE_AST
 		return(1);
 	}
-	gethostname(node_name, MAX_NODE_NAME);
+	if((gethostname(node_name, MAX_NODE_NAME)) == -1)
+	{
+		ENABLE_AST
+		return(0);
+	}
 #ifndef VxWorks
 #ifndef RAID
 	if(!strchr(node_name,'.'))
 	{
-		if ((host = gethostbyname(node_name)) == (struct hostent *)0) 
-		{
-			ENABLE_AST
-			return(0);
-		}
-		strcpy(node_name,host->h_name);
-		if(!strchr(node_name,'.'))
-		{
-		    if(host->h_aliases)
-		    {
-				if(host->h_aliases[0])
+		if ((host = gethostbyname(node_name)) != (struct hostent *)0) 
+		{		
+			strcpy(node_name,host->h_name);
+			if(!strchr(node_name,'.'))
+			{
+				if(host->h_aliases)
 				{
-					for(i = 0; host->h_aliases[i]; i++)
+					if(host->h_aliases[0])
 					{
-						p = host->h_aliases[i];
-						if(strchr(p,'.'))
+						for(i = 0; host->h_aliases[i]; i++)
 						{
-							strcpy(node_name,p);
-							break;
+							p = host->h_aliases[i];
+							if(strchr(p,'.'))
+							{
+								strcpy(node_name,p);
+								break;
+							}
 						}
 					}
 				}
@@ -86,15 +91,19 @@ int	i;
 	return(1);
 }
 
+/* 
+Bug or Feature? 
+get_node_addr returns the "default" interface address, not the one chosen by 
+DIM_HOST_NODE. This makes the DNS or a DIM server respond to both interfaces 
+*/
+
 int get_node_addr(node_addr)
 char *node_addr;
 {
 #ifndef VxWorks
 struct hostent *host;
 #endif
-char	*p;
 char node_name[MAX_NODE_NAME];
-unsigned int a,b,c,d;
 unsigned char *ptr;
 
 #ifdef WIN32
@@ -102,21 +111,26 @@ unsigned char *ptr;
 #endif
 	gethostname(node_name, MAX_NODE_NAME);
 #ifndef VxWorks
-	if ((host = (struct hostent *)gethostbyname(node_name)) == 
-			(struct hostent *)0) 
+	if ((host = (struct hostent *)gethostbyname(node_name)) == (struct hostent *)0)
+	{
+		node_addr[0] = 0;
+		node_addr[1] = 0;
+		node_addr[2] = 0;
+		node_addr[3] = 0;
 		return(0);
-    	ptr = (unsigned char *)host->h_addr;
-    	node_addr[0] = *ptr++;
-    	node_addr[1] = *ptr++;
-    	node_addr[2] = *ptr++;
-    	node_addr[3] = *ptr++;
-    	return(1);
+	}
+    ptr = (unsigned char *)host->h_addr;
+    node_addr[0] = *ptr++;
+    node_addr[1] = *ptr++;
+    node_addr[2] = *ptr++;
+    node_addr[3] = *ptr++;
+    return(1);
 #else
-    	node_addr[0] = 0;
-    	node_addr[1] = 0;
-    	node_addr[2] = 0;
-    	node_addr[3] = 0;
-		return(0);
+    node_addr[0] = 0;
+    node_addr[1] = 0;
+    node_addr[2] = 0;
+    node_addr[3] = 0;
+	return(0);
 #endif
 }
 
@@ -220,11 +234,38 @@ int get_dns_accepted_domains( domains )
 char *domains;
 {
 	char	*p;
+	int append = 0;
 
+	if(get_dns_accepted_nodes(domains))
+		append = 1;
 	if( (p = getenv("DIM_DNS_ACCEPTED_DOMAINS")) == NULL )
+	{
+		if(!append)
+			return(0);
+		else
+			return(1);
+	}
+	else {
+		if(!append)
+			strcpy( domains, p );
+		else
+		{
+			strcat( domains, ",");
+			strcat( domains, p);
+		}
+		return(1);
+	}
+}
+
+int get_dns_accepted_nodes( nodes )
+char *nodes;
+{
+	char	*p;
+
+	if( (p = getenv("DIM_DNS_ACCEPTED_NODES")) == NULL )
 		return(0);
 	else {
-		strcpy( domains, p );
+		strcpy( nodes, p );
 		return(1);
 	}
 }

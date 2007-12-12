@@ -58,7 +58,7 @@ int *tag, *size;
 	{
 		char node[128], str[256];
 		int secs, millis;
-		dim_get_dns_node(node);
+		dic_get_dns_node(node);
 		printf("DNS node = %s\n",node);
 		printf("size = %d\n",*size);
 		memcpy(&t, buf, *size);
@@ -93,7 +93,7 @@ char **argv;
 	dic_set_debug_on();
 */
 /*
-	dim_set_dns_node("pclhcb99.cern.ch");
+	dic_set_dns_node("pclhcb99.cern.ch");
 */
 
 	sprintf(str,"%s/SET_EXIT_HANDLER",argv[2]);

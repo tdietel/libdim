@@ -12,6 +12,7 @@
 #include <Xm/FileSB.h>
 #include <Xm/MessageB.h>
 #include <Xm/Text.h>
+#include <Xm/List.h>
 #include <dui_colors.h>
 /* VUIT routines for the user to call */
 void s_error();
@@ -82,7 +83,7 @@ Widget put_selection();
 Widget gui_toplevel();
 Widget gui_initialize();
 void gui_create_main_menu();
-Widget gui_create_main_window();
+void gui_create_main_window();
 
 
 

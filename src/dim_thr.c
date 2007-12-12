@@ -28,11 +28,12 @@ sem_t *DIM_WAIT_Semap;
 #endif
 int INIT_count = 0;
 int WAIT_count = 0;
+int DIM_THR_init_done = 0;
 
 void *dim_tcpip_thread(void *tag)
 {
-	sigset_t set1, set2;
-	int signo;
+	extern int dim_tcpip_init();
+	extern void tcpip_task();
 	/*	
 	int prio;
 		
@@ -61,8 +62,8 @@ void *dim_tcpip_thread(void *tag)
 
 void *dim_dtq_thread(void *tag)
 {
-	sigset_t set1,set2;
-	int signo, ret;
+	extern int dim_dtq_init();
+	extern int dtq_task();
 	/*
 	int prio;
 
@@ -93,11 +94,10 @@ void *dim_dtq_thread(void *tag)
 
 void dim_init()
 {
-	static int done = 0;
-	sigset_t set1;
 	pthread_t t_id;
-	static void ignore_sigpipe();
+	void ignore_sigpipe();
 	int ret;
+	extern int dna_init();
 /*
 #ifdef LYNXOS
 */
@@ -105,12 +105,12 @@ void dim_init()
 /*
 #endif
 */
-	if(!done)
+	if(!DIM_THR_init_done)
 	{
 	  /*
 		int prio;
 	  */
-		done = 1;
+		DIM_THR_init_done = 1;
 		dna_init();
 		/*
 		thr_getprio(thr_self(),&prio);
@@ -122,7 +122,7 @@ void dim_init()
 #ifndef darwin 
 		
 		sem_init(&DIM_INIT_Sema, 0, INIT_count);
-	        sem_init(&DIM_WAIT_Sema, 0, WAIT_count);
+		sem_init(&DIM_WAIT_Sema, 0, WAIT_count);
 #else
 		DIM_INIT_Semap = sem_open("/Dim_INIT_Sem", O_CREAT, S_IRUSR | S_IWUSR, INIT_count);
 		DIM_WAIT_Semap = sem_open("/Dim_WAIT_Sem", O_CREAT, S_IRUSR | S_IWUSR, WAIT_count);
@@ -160,8 +160,41 @@ void dim_init()
 	}
 }
 
+void dim_stop()
+{
+	int i;
+	int n = 0;
+	void dim_tcpip_stop(), dim_dtq_stop();
+
+	for( i = 0; i< Curr_N_Conns; i++ )
+	{
+		if(Net_conns[i].channel != 0)
+			n++;
+	}
+	if(n)
+		return;
+	if(IO_thread)
+		pthread_cancel(IO_thread);
+	if(ALRM_thread)
+		pthread_cancel(ALRM_thread);
+	IO_thread = 0;
+	ALRM_thread = 0;
+#ifndef darwin 		
+	sem_destroy(&DIM_INIT_Sema);
+	sem_destroy(&DIM_WAIT_Sema);
+#else
+	sem_unlink("/Dim_INIT_Sem");
+	sem_unlink("/Dim_WAIT_Sem");
+	sem_close(DIM_INIT_Semap);
+	sem_close(DIM_WAIT_Semap);
+#endif
+	dim_tcpip_stop();
+	dim_dtq_stop();	
+	DIM_THR_init_done = 0;
+}
+
 int dim_start_thread(thread_ast, tag)
-void (*thread_ast)();
+void *(*thread_ast)(void *);
 long tag;
 {
 	pthread_t t_id;
@@ -172,7 +205,7 @@ long tag;
 	pthread_create(&t_id, attr, (void *)thread_ast, (void *)tag);
 #else
 	pthread_attr_init(&attr);
-	pthread_create(&t_id, &attr, (void *)thread_ast, (void *)tag);
+	pthread_create(&t_id, &attr, thread_ast, (void *)tag);
 #endif
 	return((int)t_id);
 }	
@@ -180,7 +213,7 @@ long tag;
 int dim_set_scheduler_class(int pclass)
 {
 #ifdef __linux__
-	int ret, prio, p, mprio, iprio, tprio;
+	int ret, prio, p;
 	struct sched_param param;
 
 	if(pclass == 0)
@@ -234,9 +267,9 @@ int dim_get_scheduler_class(int *pclass)
 int dim_set_priority(int threadId, int prio)
 {
 #ifdef __linux__
-  pthread_t id;
+	pthread_t id;
 	int ret;
-	int pclass, p;
+	int pclass;
 	struct sched_param param;
 
 	if(threadId == 1)
@@ -278,12 +311,12 @@ int dim_get_priority(int threadId, int *prio)
 	return 0;
 }
 
-static void ignore_sigpipe()
+void ignore_sigpipe()
 {
 
   struct sigaction sig_info;
   sigset_t set;
-  static void pipe_sig_handler();
+  void pipe_sig_handler();
 	    
   if( sigaction(SIGPIPE, 0, &sig_info) < 0 ) 
   {
@@ -308,7 +341,7 @@ static void ignore_sigpipe()
   }
 }
 
-static void pipe_sig_handler( num )
+void pipe_sig_handler( num )
 int num;
 {
   /*  
@@ -320,6 +353,11 @@ int num;
 void dim_init_threads()
 {
     dim_init();
+}
+
+void dim_stop_threads()
+{
+	dim_stop();
 }
 
 int dim_wait(void)
@@ -341,15 +379,16 @@ int dim_wait(void)
 	return(-1);
 }
 
+/*
 static void show_ast()
 {
 sigset_t oset;
-/*
+
 	sigprocmask(SIG_SETMASK,0,&oset);
 	printf("---THREAD id = %d, mask = %x %x\n",
        pthread_self(), oset.__sigbits[1], oset.__sigbits[0]);
-*/
 }
+*/
 
 pthread_t Dim_thr_locker = 0;
 int Dim_thr_counter = 0;
@@ -396,6 +435,14 @@ void dim_init_threads()
 {
 }
 
+void dim_stop_threads()
+{
+}
+
+void dim_stop()
+{
+}
+
 int dim_wait()
 {
   pause();
@@ -420,10 +467,18 @@ DWORD MAIN_thread = 0;
 HANDLE hIO_thread;
 HANDLE hALRM_thread;
 HANDLE hMAIN_thread;
+DllExp HANDLE Global_DIM_event = 0;
+DllExp HANDLE Global_DIM_mutex = 0;
+void dim_tcpip_stop(), dim_dtq_stop();
 
 int dim_start_thread(thread_ast, tag)
+#ifndef STDCALL
 void (*thread_ast)();
 long tag;
+#else
+unsigned long (*thread_ast)(void *);
+void *tag;
+#endif
 {
 DWORD threadid = 0;
 HANDLE hthread;
@@ -440,7 +495,7 @@ HANDLE hthread;
     hthread = CreateThread( 
         NULL,                        /* no security attributes			*/
         0,                           /* use default stack size			*/
-        thread_ast,					 /* thread function					*/
+		thread_ast,					 /* thread function					*/
         tag,			             /* argument to thread function		*/
         0,                           /* use default creation flags		*/
         &threadid);					 /* returns the thread identifier	*/
@@ -448,7 +503,7 @@ HANDLE hthread;
 	return (int)threadid;
 }
 
-/*
+
 int dim_stop_thread(thread_id)
 long thread_id;
 {
@@ -457,7 +512,7 @@ long thread_id;
 	ret = TerminateThread((HANDLE)thread_id, 0);
 	return ret;
 }
-*/
+
 
 void create_io_thread()
 {
@@ -515,6 +570,39 @@ void dim_init_threads()
 		hMAIN_thread = GetCurrentThread();
 		done = 1;
 	}
+}
+
+void dim_stop_threads()
+{
+	int i;
+	int n = 0;
+
+	for( i = 0; i< Curr_N_Conns; i++ )
+	{
+		if(Net_conns[i].channel != 0)
+			n++;
+	}
+	if(n)
+		return;
+	if(hIO_thread)
+		TerminateThread(hIO_thread, 0);
+	if(hALRM_thread)
+		TerminateThread(hALRM_thread, 0);
+	if(Global_DIM_mutex) 
+		CloseHandle(Global_DIM_mutex);
+	if(Global_DIM_event) 
+		CloseHandle(Global_DIM_event);
+	hIO_thread = 0;
+	hALRM_thread = 0;
+	Global_DIM_mutex = 0;
+	Global_DIM_event = 0;
+	dim_tcpip_stop();
+	dim_dtq_stop();
+}
+
+void dim_stop()
+{
+	dim_stop_threads();
 }
 
 int dim_set_scheduler_class(int pclass)
@@ -657,9 +745,6 @@ int dim_wait()
 	pause();
 	return(1);
 }
-
-DllExp HANDLE Global_DIM_event = 0;
-DllExp HANDLE Global_DIM_mutex = 0;
 
 void dim_lock()
 {

@@ -1,3 +1,5 @@
+#include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <dis.h>
 
@@ -19,11 +21,11 @@ TT t;
 /*
 int big_buff[1024];
 */
+
 void cmnd_rout(tag, buf, size)
 int *tag, *size;
 TT *buf;
 {
-int i,*ptr;
 
 	printf("Command received, size = %d, TT size = %d:\n", *size,
 	       sizeof(TT));
@@ -35,7 +37,6 @@ void client_exited(tag)
 int *tag;
 {
 	char name[84];
-	char *ptr;
 
 	if(dis_get_client(name))
 		printf("Client %s (%d) exited\n", name, *tag);
@@ -49,35 +50,14 @@ int *code;
 	printf("Exit_cmnd %d\n", *code);
 	exit(*code);
 }
-/*
-execute_in_parallel(int value)
-{
-	printf("Command received %d\n", value);
-	sleep(1);
-	printf("Out of Cmnd %d\n", value);
-}
-
-void new_cmnd_rout(tag, buf, size)
-int *tag, *size;
-int *buf;
-{
-
-//	printf("Command received %d\n", *buf);
-//	sleep(1);
-//	printf("Out of Cmnd %d\n", *buf);
-
-	dim_start_thread(execute_in_parallel, *buf);
-}
-*/
 
 main(argc,argv)
 int argc;
 char **argv;
 {
-	int i, j, id, *ptr;
+	int i, id, *ptr;
 	char aux[80];
-	char name[84], *ptrc;
-	int big_ids[20];
+	char name[84];
 	int index = 0;
 
 	dis_add_exit_handler(exit_cmnd);
@@ -95,16 +75,13 @@ char **argv;
 	t.s = 12;
 	t.t = 12;
 	t.c = 'a';
-	t.f = 4.56;
+	t.f = (float)4.56;
 	ptr = (int *)&t;
 	strcpy(t.str,"hello world");
 
 	sprintf(aux,"%s/TEST_SWAP",argv[1]);
 	id = dis_add_service( aux, "l:3;d:1;s:1;c:1;s:1;f:1;c:20", &t, sizeof(t), 
 		(void *)0, 0 );
-
-//	sprintf(aux,"%s/TEST_NEW_CMD",argv[1]);
-//	dis_add_cmnd(aux,"I",new_cmnd_rout, 0);
 
 	sprintf(aux,"%s/TEST_CMD",argv[1]);
 	dis_add_cmnd(aux,"l:3;d:1;s:1;c:1;s:1;f:1;c:20",cmnd_rout, 0);

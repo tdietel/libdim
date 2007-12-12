@@ -162,7 +162,7 @@ int curr_bytes, item_size;
 {
 	int num;
 
-	if(num = curr_bytes % item_size)
+	if( (num = curr_bytes % item_size))
 	{
 		num = item_size - num;
 	}
@@ -211,7 +211,7 @@ register void *buff_out, *buff_in;
 
 				if(Dis_padding)
 				{
-					if(pad_num = check_padding(curr_size, SIZEOF_SHORT))
+					if( (pad_num = check_padding(curr_size, SIZEOF_SHORT)) )
 					{
 						inc_pter( buff_in, pad_num);
 						curr_size += pad_num;
@@ -228,7 +228,7 @@ register void *buff_out, *buff_in;
 
 				if(Dis_padding)
 				{
-					if(pad_num = check_padding(curr_size, SIZEOF_LONG))
+					if( (pad_num = check_padding(curr_size, SIZEOF_LONG)) )
 					{
 						inc_pter( buff_in, pad_num);
 						curr_size += pad_num;
@@ -246,9 +246,9 @@ register void *buff_out, *buff_in;
 				if(Dis_padding)
 				{
 #ifdef PADD64
-					if(pad_num = check_padding(curr_size, SIZEOF_DOUBLE))
+					if( (pad_num = check_padding(curr_size, SIZEOF_DOUBLE)) )
 #else
-					if(pad_num = check_padding(curr_size, SIZEOF_LONG))
+					if( (pad_num = check_padding(curr_size, SIZEOF_LONG)) )
 #endif
 					{
 						inc_pter( buff_in, pad_num);
@@ -308,9 +308,9 @@ register void *buff_out, *buff_in;
 					if(curr_par_bytes == SIZEOF_DOUBLE)
 					{
 #ifdef PADD64
-						if(pad_num = check_padding(curr_out, SIZEOF_DOUBLE))
+						if( (pad_num = check_padding(curr_out, SIZEOF_DOUBLE)) )
 #else
-						if(pad_num = check_padding(curr_out, SIZEOF_LONG))
+						if( (pad_num = check_padding(curr_out, SIZEOF_LONG)) )
 #endif
 						{
 							inc_pter( buff_out, pad_num);
@@ -319,7 +319,7 @@ register void *buff_out, *buff_in;
 					}
 					else
 					{
-						if(pad_num = check_padding(curr_out, curr_par_bytes))
+						if( (pad_num = check_padding(curr_out, curr_par_bytes)) )
 						{
 							inc_pter( buff_out, pad_num);
 							curr_out += pad_num;
@@ -340,7 +340,7 @@ register void *buff_out, *buff_in;
 
 				if(Dic_padding)
 				{
-					if(pad_num = check_padding(curr_out, SIZEOF_SHORT))
+					if( (pad_num = check_padding(curr_out, SIZEOF_SHORT)) )
 					{
 						inc_pter( buff_out, pad_num);
 						curr_out += pad_num;
@@ -358,7 +358,7 @@ register void *buff_out, *buff_in;
 
 				if(Dic_padding)
 				{
-					if(pad_num = check_padding(curr_out, SIZEOF_LONG))
+					if( (pad_num = check_padding(curr_out, SIZEOF_LONG)) )
 					{
 						inc_pter( buff_out, pad_num);
 						curr_out += pad_num;
@@ -377,9 +377,9 @@ register void *buff_out, *buff_in;
 				if(Dic_padding)
 				{
 #ifdef PADD64
-					if(pad_num = check_padding(curr_out, SIZEOF_DOUBLE))
+					if( (pad_num = check_padding(curr_out, SIZEOF_DOUBLE)) )
 #else
-					if(pad_num = check_padding(curr_out, SIZEOF_LONG))
+					if( (pad_num = check_padding(curr_out, SIZEOF_LONG)) )
 #endif
 					{
 						inc_pter( buff_out, pad_num);

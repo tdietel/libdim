@@ -71,6 +71,8 @@ SRC_TYPES type;
 		Net_conns = (NET_CONNECTION *)
 				calloc( Curr_N_Conns, sizeof(NET_CONNECTION) );
 		break;
+	default:
+		break;
 	}
 }
 
@@ -102,6 +104,8 @@ int conn_get()
 	case SRC_DNS :
 		Dns_conns = arr_increase( Dns_conns, sizeof(DNS_CONNECTION),
 					  n_conns );
+		break;
+	default:
 		break;
 	}
 	conn_id = Curr_N_Conns;

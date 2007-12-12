@@ -25,6 +25,7 @@ public:
 	DimInfo *itsService;
     DimInfo *getInfo() { return itsService; }; 
 	virtual void infoHandler() = 0;
+	virtual ~DimInfoHandler() {};
 };
 
 class DllExp DimInfo : public DimInfoHandler, public DimTimer{
@@ -444,7 +445,7 @@ public:
 	static int getDnsPort();
 	static void addErrorHandler(DimErrorHandler *handler);
 	void addErrorHandler();
-	virtual void errorHandler(int severity, int code, char *msg) {};
+	virtual void errorHandler(int /* severity */, int /* code */, char* /* msg */) {};
 	// Get Current Server Identifier	
 	static char *serverName;
 	static int getServerId();

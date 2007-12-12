@@ -14,6 +14,7 @@ public:
 class DllExp DimErrorHandler{
 public:
 	virtual void errorHandler(int severity, int code, char *msg) = 0;
+	virtual ~DimErrorHandler() {};
 };
 
 class DllExp DimTimer

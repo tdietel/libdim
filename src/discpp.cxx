@@ -362,20 +362,20 @@ void DimServer::addErrorHandler(DimErrorHandler *handler)
 
 int DimServer::setDnsNode(const char *node) 
 {
-	return dim_set_dns_node((char *)node); 
+	return dis_set_dns_node((char *)node); 
 }
 
 int DimServer::setDnsNode(const char *node, int port) 
 {
-	dim_set_dns_port(port);
-	return dim_set_dns_node((char *)node); 
+	dis_set_dns_port(port);
+	return dis_set_dns_node((char *)node); 
 }
 
 char *DimServer::getDnsNode() 
 {
 	if(!dimDnsNode)
 		dimDnsNode = new char[256];
-	if(dim_get_dns_node(dimDnsNode))
+	if(dis_get_dns_node(dimDnsNode))
 		return dimDnsNode;
 	else
 		return 0; 
@@ -383,7 +383,7 @@ char *DimServer::getDnsNode()
 
 int DimServer::getDnsPort() 
 {
-	return dim_get_dns_port();
+	return dis_get_dns_port();
 }
 
 void DimServer::setWriteTimeout(int secs)

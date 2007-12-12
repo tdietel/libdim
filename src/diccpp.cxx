@@ -344,7 +344,7 @@ static void cmnd_done(void *tagp, int *result)
 
 int DimCmnd::send(char *name, void *data, int datasize) 
 {
-	int id;
+//	int id;
 	if(DimCore::inCallback) 
 	{
 		dic_cmnd_service(name, data, datasize);
@@ -860,15 +860,15 @@ int DimClient::killServer(const char *srvName)
 
 int DimClient::setDnsNode(const char *node)
 {
-	dim_set_dns_node((char *)node);
+	dic_set_dns_node((char *)node);
 	dic_close_dns();
 	return 1;
 }
 
 int DimClient::setDnsNode(const char *node, int port)
 {
-	dim_set_dns_port(port);
-	dim_set_dns_node((char *)node);
+	dic_set_dns_port(port);
+	dic_set_dns_node((char *)node);
 	dic_close_dns();
 	return 1;
 }
@@ -877,7 +877,7 @@ char *DimClient::getDnsNode()
 {
 	if(!dimDnsNode)
 		dimDnsNode = new char[256];
-	if(dim_get_dns_node(dimDnsNode))
+	if(dic_get_dns_node(dimDnsNode))
 		return dimDnsNode;
 	else
 		return 0;
@@ -885,7 +885,7 @@ char *DimClient::getDnsNode()
 
 int DimClient::getDnsPort() 
 {
-	return dim_get_dns_port();
+	return dic_get_dns_port();
 }
 
 extern "C" {

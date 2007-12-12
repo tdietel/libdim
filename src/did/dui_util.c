@@ -35,7 +35,7 @@ char *text;
 }
 
 
-free_str()
+void free_str()
 {
 
 	XmStringFree(Active_str);
@@ -52,7 +52,7 @@ XmString str;
 	return(str);
 }
 
-delete_str(str)
+void delete_str(str)
 XmString str;
 {
 
@@ -149,7 +149,7 @@ int i;
 	return((XmStringTable)str_table);
 }
 
-del_str_table()
+void del_str_table()
 {
 int i;
 
@@ -171,7 +171,7 @@ int color;
 	return(rgb_colors[color]);
 }
 
-set_color(w, resource, color) 
+void set_color(w, resource, color) 
 Widget w;
 char *resource;
 int color;
@@ -188,27 +188,27 @@ DISABLE_AST
 ENABLE_AST
 }
 	
-set_watch(w, color) 
+void set_watch(w, color) 
 Widget w;
 int color;
 {
 	set_something(w,XmNbackgroundPixmap,watch_colors[color]);
 }
 	
-set_lock(w, color) 
+void set_lock(w, color) 
 Widget w;
 int color;
 {
 	set_something(w,XmNbackgroundPixmap,locks[color]);
 }
 	
-set_unlock(w) 
+void set_unlock(w) 
 Widget w;
 {
 	set_something(w,XmNbackgroundPixmap,unlock);
 }
 	
-set_face(w, color) 
+void set_face(w, color) 
 Widget w;
 int color;
 {
@@ -219,7 +219,6 @@ void get_all_colors(display, w)
 	Display *display;
 	Widget w;
 {
-    int i;
     XColor a,b;
     Colormap cm;
     cm = DefaultColormap ( display, DefaultScreen(display));
@@ -265,7 +264,7 @@ void get_all_colors(display, w)
 
 static int was_sensitive = 0;
 
-set_sensitive(widget_id)
+void set_sensitive(widget_id)
 Widget widget_id;
 {
 
@@ -273,11 +272,11 @@ Widget widget_id;
 		XtSetSensitive(widget_id,True);
 }
 
-set_insensitive(widget_id)
+void set_insensitive(widget_id)
 Widget widget_id;
 {
 
-	if(was_sensitive = XtIsSensitive(widget_id))
+	if( (was_sensitive = XtIsSensitive(widget_id)) )
 		XtSetSensitive(widget_id,False);
 }
 	
