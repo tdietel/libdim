@@ -44,7 +44,7 @@ AC_DEFUN([AC_OPTIMIZATION],
 ])
 
 dnl __________________________________________________________________
-AC_INIT([Distributed Information Management System], [16.14], [Clara.Gaspar@cern.ch], dim)
+AC_INIT([Distributed Information Management System], [17.02], [Clara.Gaspar@cern.ch], dim)
 AC_SUBST([IPKG_RELEASE],[1])
 AC_PREREQ(2.50)
 AC_CANONICAL_TARGET

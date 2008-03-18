@@ -421,6 +421,7 @@ int conn_id;
 }
 
 #else
+#ifndef darwin
 
 void tcpip_set_keepalive( channel, tmout )
 int channel, tmout;
@@ -442,6 +443,7 @@ int channel, tmout;
 }
 
 #endif
+#endif
 
 void tcpip_set_test_write(conn_id, timeout)
 int conn_id, timeout;
@@ -452,7 +454,9 @@ int conn_id, timeout;
 	Net_conns[conn_id].timeout = timeout;
 	Net_conns[conn_id].last_used = time(NULL);
 #else
+#ifndef darwin
 	tcpip_set_keepalive(Net_conns[conn_id].channel, timeout);
+#endif
 #endif
 }
 
@@ -666,28 +670,32 @@ void tcpip_task( void *dummy)
 				FD_CLR( (unsigned)DIM_IO_path[0], pfds );
 			  }
 			{
-			DISABLE_AST
+//			DISABLE_AST
 			while( (ret = fds_get_entry( &rfds, &conn_id )) > 0 ) 
 			{
 				if( Net_conns[conn_id].reading )
 				{
 					do
 					{
+			DISABLE_AST
 						do_read( conn_id );
 						count = 0;
 						if(Net_conns[conn_id].channel)
 						{
 							count = get_bytes_to_read(conn_id);
 						}
+			ENABLE_AST
 					}while(count > 0 );
 				}
 				else
 				{
+			DISABLE_AST
 					do_accept( conn_id );
+			ENABLE_AST
 				}
 				FD_CLR( (unsigned)Net_conns[conn_id].channel, &rfds );
 			}
-			ENABLE_AST
+//			ENABLE_AST
 			}
 #ifndef WIN32
 			return;
@@ -891,6 +899,7 @@ int port;
 	}
 
 #ifdef __linux__
+#ifndef darwin
 	val = 2;
 	if ((ret_code = setsockopt(path, IPPROTO_TCP, TCP_SYNCNT, 
 			(char*)&val, sizeof(val))) == -1 ) 
@@ -899,6 +908,7 @@ int port;
 		printf("Couln't set TCP_SYNCNT\n");
 #endif
 	}
+#endif
 #endif
 
 	sockname.sin_family = PF_INET;
