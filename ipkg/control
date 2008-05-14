@@ -1,9 +1,9 @@
 Package: libdim
 Priority: optional
-Version: 17.02-1 
+Version: 17.05-1 
 Architecture: arm
 Section: libs
-Source: dim_v17r2.zip
+Source: dim_v17r5.zip
 Maintainer: Tom Dietel <tom@dietel.net>
 Depends: 
 Description: DIM Libraries
