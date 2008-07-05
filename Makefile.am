@@ -1,56 +1,93 @@
+
+SUBDIRS = extra
+
 #
 #
 #
-AUTOMAKE_OPTIONS        =  foreign
-ACLOCAL_AMFLAGS         =  -I .
+#AUTOMAKE_OPTIONS        =  foreign
+#ACLOCAL_AMFLAGS         =  -I .
 AM_CPPFLAGS		= -I$(srcdir)/dim
-EXTRA_DIST		=  Release-Notes/license.gpl	\
-			   Release-Notes/readme.txt	\
-			   Release-Notes/README_v9.txt	\
-			   Release-Notes/README_v10.txt	\
-			   Release-Notes/README_v11.txt	\
-			   Release-Notes/README_v12.txt	      
+# EXTRA_DIST		=  Release-Notes/license.gpl	\
+# 			   Release-Notes/readme.txt	\
+# 			   Release-Notes/README_v9.txt	\
+# 			   Release-Notes/README_v10.txt	\
+# 			   Release-Notes/README_v11.txt	\
+# 			   Release-Notes/README_v12.txt	      
 
-lib_LTLIBRARIES		=  libdim.la
-
-libdim_la_SOURCES	=  src/dic.c                	\
-                           src/dis.c                	\
-			   src/dna.c			\
-			   src/sll.c			\
-			   src/dll.c			\
-			   src/hash.c			\
-			   src/swap.c			\
-			   src/copy_swap.c		\
-			   src/open_dns.c		\
-			   src/conn_handler.c		\
-			   src/tcpip.c			\
-			   src/dtq.c			\
-			   src/dim_thr.c		\
-			   src/utilities.c
-if CXXDIM
-CXXDIM_ADDON_SRC	=  src/diccpp.cxx 		\
-			   src/discpp.cxx 		\
-			   src/dimcpp.cxx 		\
-			   src/tokenstring.cxx
-endif
-libdim_la_SOURCES	+= $(CXXDIM_ADDON_SRC)
-
-pkginclude_HEADERS	=  dim/dic.h			\
-			   dim/dim.h			\
-			   dim/dim_common.h		\
-			   dim/dis.h			
-if CXXDIM
-CXXDIM_ADDON_HDR	=  dim/dic.hxx 			\
-			   dim/dim.hxx 			\
-			   dim/dim_core.hxx 		\
-			   dim/dis.hxx 			\
-			   dim/dllist.hxx 		\
-			   dim/sllist.hxx 		\
-			   dim/tokenstring.hxx
-endif
-pkginclude_HEADERS	+= $(CXXDIM_ADDON_HDR)
+#dist_noinst_DATA =	dim.spec
 
 
+lib_LTLIBRARIES	= 	libdim.la
+
+bin_PROGRAMS =		dim_get_service \
+			dim_send_command \
+			dim_check_dns \
+			dim_bridge \
+			dim_did
+
+#bin_SCRIPTS = 		dim-config
+
+sbin_PROGRAMS =		dim_dns
+
+pkginclude_HEADERS =	dim/dic.h \
+			dim/dim.h \
+			dim/dim_common.h \
+			dim/dis.h \
+			dim/dic.hxx \
+			dim/dim.hxx \
+			dim/dim_core.hxx \
+			dim/dis.hxx \
+			dim/dllist.hxx \
+			dim/sllist.hxx \
+			dim/tokenstring.hxx
+
+dist_noinst_HEADERS =	dim/dim_tcpip.h \
+			dim/dim_core.hxx \
+			src/did/did.h \
+			src/did/dui_colors.h \
+			src/did/dui_util.h
+
+dim_dns_SOURCES	=  src/dns.c
+dim_dns_LDADD	=  libdim.la
+
+dim_did_SOURCES	 =  src/did/did.c src/did/dui_util.c
+dim_did_CPPFLAGS =  -I$(srcdir)/src/did -I$(srcdir)/dim -I/usr/X11R6/include
+dim_did_LDADD	 =  libdim.la -L/usr/X11R6/lib/ -lMrm
+
+dim_get_service_SOURCES         =  src/util/dim_get_service.c
+dim_get_service_LDADD           =  libdim.la
+
+dim_send_command_SOURCES        =  src/util/dim_send_command.c
+dim_send_command_LDADD          =  libdim.la
+
+dim_check_dns_SOURCES           =  src/util/check_dns.cxx
+dim_check_dns_LDADD             =  libdim.la
+
+dim_bridge_SOURCES              =  src/util/dimbridge.cxx
+dim_bridge_LDADD                =  libdim.la
+
+libdim_la_SOURCES =	src/dic.c \
+                        src/dis.c \
+			src/dna.c \
+			src/sll.c \
+			src/dll.c \
+			src/hash.c \
+			src/swap.c \
+			src/copy_swap.c \
+			src/open_dns.c \
+			src/conn_handler.c \
+			src/tcpip.c \
+			src/dtq.c \
+			src/dim_thr.c \
+			src/utilities.c \
+			src/diccpp.cxx \
+			src/discpp.cxx \
+			src/dimcpp.cxx \
+			src/tokenstring.cxx
+
+libdim_la_LDFLAGS = -version-info $(LIB_VERSION)
+
+#libdim_la_CPPFLAGS = -I$(srcdir)/dim
 #
 # EOF
 #

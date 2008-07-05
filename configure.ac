@@ -2,6 +2,18 @@ dnl
 dnl
 dnl
 dnl ------------------------------------------------------------------
+AC_INIT([Distributed Information Management System], [17.05], [Clara.Gaspar@cern.ch], dim)
+AC_PREREQ(2.50)
+AC_CANONICAL_TARGET
+AM_INIT_AUTOMAKE([foreign])
+AC_SUBST([RPM_RELEASE],[3])
+AC_SUBST([IPKG_RELEASE],[1])
+
+# Please read the libtool manual before changing the version number! 
+# http://www.gnu.org/software/libtool/manual.html#Versioning
+AC_SUBST([LIB_VERSION],[1:0:0])
+
+
 AC_DEFUN([AC_DEBUG],
 [
   AC_REQUIRE([AC_PROG_CC])
@@ -44,11 +56,6 @@ AC_DEFUN([AC_OPTIMIZATION],
 ])
 
 dnl __________________________________________________________________
-AC_INIT([Distributed Information Management System], [17.05], [Clara.Gaspar@cern.ch], dim)
-AC_SUBST([IPKG_RELEASE],[1])
-AC_PREREQ(2.50)
-AC_CANONICAL_TARGET
-AM_INIT_AUTOMAKE([foreign])
 
 dnl
 dnl __________________________________________________________________
@@ -86,24 +93,11 @@ linux*)		AC_DEFINE([linux])
 		AC_DEFINE([unix])		;;
 esac
 
-dnl
-dnl __________________________________________________________________
-AC_ARG_ENABLE([cxx-api],
-              [AC_HELP_STRING([--enable-cxx-api],
-                              [Also generate the C++ API])])
-AC_MSG_CHECKING([whether to enable C++ API])
-if test ! "x$enable_cxx_api" = "xno" ; then
-   enable_cxx_api=yes
-fi
-AC_MSG_RESULT([$enable_cxx_api])
-AM_CONDITIONAL([CXXDIM],test "x$enable_cxx_api" = "xyes")
-AC_SUBST(enable_cxx_api)
-
 dnl __________________________________________________________________
 AC_ARG_ENABLE([threads],
               [AC_HELP_STRING([--enable-threads],
                               [Make the library thread-safe])],
-			      [], [enable_threads=no])
+			      [], [enable_threads=yes])
 AC_MSG_CHECKING([whether make the library thread safe])
 if test ! "x$enable_threads" = "xno" ; then
    enable_threads=yes
@@ -115,7 +109,7 @@ if test ! "x$enable_threads" = "xno" ; then
    # FeeServer uses threads and links against the thread library
    # The dim library must be compiled with the NOTHREADS flag to avoid
    # deadlocks
-   linux*:arm*)		   enable_threads=no            ;;
+   #   linux*:arm*)		   enable_threads=no            ;;
    linux*)		   LIBS="$LIBS -pthread"	;;
    lynxos*:rs6000)	   CFLAGS="$CFLAGS -mthreads"	;;
    *)			   LIBS="$LIBS -lpthread"	;;
@@ -126,6 +120,9 @@ if test "x$enable_threads" = "xno" ; then
 fi
 AC_MSG_RESULT([$enable_threads])
 
+
+
+
 dnl
 dnl __________________________________________________________________
 AC_DEBUG
@@ -133,6 +130,10 @@ AC_OPTIMIZATION
 
 dnl __________________________________________________________________
 AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([extra/Makefile])
+AC_CONFIG_FILES([extra/dim.spec])
+AC_CONFIG_FILES([extra/dim-config])
+AC_CONFIG_FILES([extra/dim-dns])
 
 AC_OUTPUT
 dnl

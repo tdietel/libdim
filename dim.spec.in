@@ -1,0 +1,107 @@
+Summary: DIM - Distributed Information Management
+Name: @PACKAGE_TARNAME@
+Version: @PACKAGE_VERSION@
+Release: @RPM_RELEASE@
+Copyright: GPL
+Group: Applications/Communications
+Source: %{name}-%{version}.tar.gz
+Distribution: ALICE TRD
+Vendor: ALICE TRD
+Packager: @PACKAGE_BUGREPORT@
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root
+
+%description
+DIM - Distributed Information Management
+
+%prep
+%setup
+%configure 
+
+%build
+make
+
+%install
+rm -rf $RPM_BUILD_ROOT
+%makeinstall
+
+%clean
+rm -rf $RPM_BUILD_ROOT
+
+#-------------------------------------------------------
+%package -n libdim1
+
+Summary: Shared libraries for DIM
+Group: Development/Libraries
+
+%description -n libdim1
+This package contains the shared libraries for DIM.
+.
+
+%files -n libdim1
+%defattr(-,root,root)
+/usr/lib/libdim.so.*
+
+%pre
+ldconfig
+
+%post
+ldconfig
+
+#-------------------------------------------------------
+%package -n libdim-devel
+
+Group: Development/Libraries
+Summary: Development files for DIM
+
+%description -n libdim-devel
+This package contains development files for DIM.
+.
+
+%files -n libdim-devel
+%defattr(-,root,root)
+/usr/bin/dim-config
+/usr/include/dim/*
+/usr/lib/libdim.so
+/usr/lib/libdim.a
+%exclude /usr/lib/libdim.la
+
+#-------------------------------------------------------
+%package utils
+
+Group: Applications/Communications
+Summary: DIM utility programs
+
+%description utils
+DIM utility programs
+.
+
+%files utils
+%defattr(-,root,root)
+/usr/bin/dim_bridge
+/usr/bin/dim_check_dns
+/usr/bin/dim_did
+/usr/bin/dim_get_service
+/usr/bin/dim_send_command
+/usr/share/man/man1/dim-config.1.gz
+/usr/share/man/man1/dim_bridge.1.gz
+/usr/share/man/man1/dim_check_dns.1.gz
+/usr/share/man/man1/dim_did.1.gz
+/usr/share/man/man1/dim_get_service.1.gz
+/usr/share/man/man1/dim_send_command.1.gz
+
+
+#-------------------------------------------------------
+%package  dns
+
+Group: Applications/Communications
+Summary: DIM Name Server
+
+%description dns
+DIM Name Server
+.
+
+%files dns
+%defattr(-,root,root)
+/usr/sbin/dim_dns
+/etc/init.d/dim-dns
+/usr/share/man/man8/dim_dns.8.gz
