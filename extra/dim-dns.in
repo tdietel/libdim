@@ -1,0 +1,78 @@
+#! /bin/sh -e
+#### BEGIN INIT INFO
+# Provides:          atd
+# Required-Start:    $syslog $local_fs 
+# Required-Stop:     $syslog $local_fs 
+# Default-Start:     2 3 4 5
+# Default-Stop:      S 0 1 6
+# Short-Description: DIM Domain Name Server
+# Description:       Init script for Distrbuted Information Management's 
+#                    Domain Name Server. 
+### END INIT INFO
+#
+# chkconfig:    345 20 80
+# description:  DIM Domain Name Server
+# processname:  dim-dns
+# pidfile:      @localstatedir@/run/dim-dns.pid
+# config:
+#
+# Author:	Christian Holm Chistensen <cholm@nbi.dk>
+#
+set -e
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+sbindir=@sbindir@
+localstatedir=@localstatedir@
+sysconfdir=@sysconfdir@
+
+PATH=/bin:/usr/bin:/sbin:/usr/sbin:${sbindir}
+DAEMON=${sbindir}/dim_dns
+NAME="dim-dns"
+DESC="Distributed Information Manager Domain Name Server"
+PIDFILE=${localstatedir}/run/$NAME.pid
+LOGFILE=${localstatedir}/log/$NAME
+
+
+test -x $DAEMON || exit 0
+
+# We use LSB init scripts, to make sure this runs everywhere. 
+if test ! -f /lib/lsb/init-functions ; then 
+    echo "Cannot start $NAME - LSB not supported"
+    exit 1
+fi
+. /lib/lsb/init-functions
+
+if test -f ${sysconfdir}/default/$NAME ; then 
+    . ${sysconfdir}/default/$NAME
+fi
+if test -f ${sysconfdir}/sysconfig/$NAME ; then 
+    . ${sysconfdir}/sysconfig/$NAME
+fi
+
+
+case "$1" in
+    start)
+	echo -n "Starting $DESC" "$NAME"
+	start_daemon $DAEMON $DAEMON_OPTS > $LOGFILE 2>&1 &
+	test $? -ne 0 && echo failed || echo "ok"
+	;;
+    stop)
+	echo -n "Stopping $DESC" "$NAME"
+	killproc $DAEMON
+	test $? -ne 0 && echo failed || echo "ok"
+	;;
+  force-reload|restart)
+    $0 stop
+    $0 start
+    ;;
+  *)
+    echo "Usage: ${sysconfdir}/init.d/dim-dns {start|stop|restart|force-reload}"
+    exit 1
+    ;;
+esac
+
+exit 0
+
+#
+# EOF
+#
