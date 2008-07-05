@@ -1,0 +1,45 @@
+.\"                                      Hey, EMACS: -*- nroff -*-
+.\" First parameter, NAME, should be all caps
+.\" Second parameter, SECTION, should be 1-8, maybe w/ subsection
+.\" other parameters are allowed: see man(7), man(1)
+.TH DIM_CHECK_DNS 1 "August  5, 2005"
+.\" Please adjust this date whenever revising the manpage.
+.\"
+.\" Some roff macros, for reference:
+.\" .nh        disable hyphenation
+.\" .hy        enable hyphenation
+.\" .ad l      left justify
+.\" .ad b      justify to both left and right margins
+.\" .nf        disable filling
+.\" .fi        enable filling
+.\" .br        insert line break
+.\" .sp <n>    insert n+1 empty lines
+.\" for manpage-specific macros, see man(7)
+.SH NAME
+dim_check_dns \- Check if DIM DNS is running
+.SH SYNOPSIS
+.B dim_check_dns
+.SH DESCRIPTION
+Check if \fbDIM\fR DNS is running
+.SH ENVIRONMENT
+.TP
+.B DIM_DNS_NODE
+The node where the DIM DNS is running
+.SH OPTIONS
+None
+.SH SEE ALSO
+.BR dim_bridge (1),
+.BR dim_check_dns (1),
+.BR dim_dns (1),
+.BR dim_did (1),
+.BR dim_get_service (1),
+.BR dim_send_command (1)
+.br
+The programs are documented fully at
+.UR http;//cern.ch/dim http;//cern.ch/dim
+available via the web.
+.SH AUTHOR
+dim was written by Clara Gasper <clara.gasper@cerrn.ch>
+.PP
+This manual page was written by Christian Holm Christensen <cholm@nbi.dk>,
+for the Debian project (but may be used by others).

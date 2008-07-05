@@ -1,0 +1,130 @@
+#!/bin/sh
+#
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+includedir=@includedir@ 
+pkgincludedir=@includedir@/@PACKAGE@
+libdir=@libdir@
+pkglibdir=@pkglibdir@
+package="@PACKAGE_TARNAME@"
+string="@PACKAGE_STRING@"
+email="@PACKAGE_BUGREPORT@"
+version="@VERSION@"
+enable_cxx=@enable_cxx_api@
+enable_jni=@enable_jni@
+
+prog=`basename $0`
+
+if test $# -eq 0 ; then 
+    $0 --help
+    exit 0
+fi
+
+have_lib=0
+while test $# -gt 0 ; do 
+    case $1 in 
+	--*=*)    
+	    opt=`echo $1 | sed 's/=.*//'`
+	    arg=`echo $1 | sed 's/[^=]*=//'` 
+	    ;;
+	--*)
+	    opt=$1
+	    arg=
+	    ;;
+	-*)
+	    opt=$1
+	    arg=$2
+	    ;;
+	*)
+	    echo "$prog: unknown argument '$1', try '$prog --help'"
+	    exit 1
+	    ;;
+    esac
+
+    case $opt in
+	--help|-h) 
+	    cat <<EOF
+Usage: $prog [options]
+
+  --prefix          Gives the installation prefix
+  --libdir          Gives path to libraries
+  --includedir      Gives path to headers 
+  --libs            Gives libraries information 
+  --jni-libs	    Gives Java Native Interface library information
+  --ldflags         Gives linkage information 
+  --cppflags        Gives preprocessor information
+  --cflags          Gives compiler information
+  --has-cxx-api     Output yes if C++ is supported, no otherwise
+  --has-jni         Output yes if the Java Native Interface is avaliable
+  --version         Gives version information
+  --help            Gives this help
+EOF
+	    ;;
+	--version|-v)
+	    cat <<EOF
+$string 
+EOF
+	    exit 0
+	    ;;
+	-V)
+	    echo $version 
+	    exit 0
+	    ;;
+	--prefix|-p)
+	    out="$out $prefix" 
+	    ;;
+	--libdir|-L)
+	    out="$out $libdir"
+	    ;;
+	--includedir|-I)
+	    out="$out $includedir" 
+	    ;;
+	--cflags)
+	    ;; 
+	--cppflags|-D)
+	    out="$out -I$pkgincludedir" 
+	    test ! "x$enable_cxx" = "xno" && out="$out -DDIMCXX" || true
+	    test ! "x$enable_jni" = "xno" && out="$out -DDIMJNI" || true
+	    ;;
+	--ldflags) 
+	    test ! "x$libdir" = "x/usr/lib" && out="$out -L$libdir" || true
+	    have_lib=1
+	    ;;
+	--libs|-l)
+	    out="$out -ldim" 
+	    have_lib=1
+	    ;;
+	--jni-libs|-l)
+	    if test ! $have_lib ; then 
+		out="$out -ldim"
+	    fi 
+	    out="$out -ljdim" ;;
+	--has-cxx-api)
+	    if test ! "x$enable_cxx" = "xno" ; then 
+		echo yes
+		exit 0
+	    else
+		echo no
+		exit 1
+	    fi
+	    ;;
+	--has-jni)
+	    if test ! "x$enable_jni" = "xno" ; then 
+		echo yes
+		exit 0
+	    else
+		echo no
+		exit 1
+	    fi
+	    ;;
+	*)
+	    echo "$prog: unknown option '$opt' - try '$prog --help'"
+	    exit 1
+    esac
+    shift
+done
+		
+echo $out	
+		
+	
