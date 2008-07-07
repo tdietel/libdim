@@ -12,7 +12,8 @@ string="@PACKAGE_STRING@"
 email="@PACKAGE_BUGREPORT@"
 version="@VERSION@"
 enable_cxx=@enable_cxx_api@
-enable_jni=@enable_jni@
+#enable_jni=@enable_jni@
+enable_jni=no
 
 prog=`basename $0`
 
