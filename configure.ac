@@ -2,17 +2,24 @@ dnl
 dnl
 dnl
 dnl ------------------------------------------------------------------
-AC_INIT([Distributed Information Management System], [17.05], [Clara.Gaspar@cern.ch], dim)
+
+AC_INIT([Distributed Information Management System], [17.05], 
+        [Clara.Gaspar@cern.ch], dim)
+
+AC_SUBST([RPM_RELEASE],[100])
+AC_SUBST([IPKG_RELEASE],[100])
+
 AC_PREREQ(2.50)
 AC_CANONICAL_TARGET
-AM_INIT_AUTOMAKE([foreign])
-AC_SUBST([RPM_RELEASE],[3])
-AC_SUBST([IPKG_RELEASE],[1])
+AM_INIT_AUTOMAKE([1.9 foreign])
 
 # Please read the libtool manual before changing the version number! 
 # http://www.gnu.org/software/libtool/manual.html#Versioning
 AC_SUBST([LIB_VERSION],[1:0:0])
 
+
+dnl    options for configuration
+dnl    =========================
 
 AC_DEFUN([AC_DEBUG],
 [
@@ -105,11 +112,6 @@ if test ! "x$enable_threads" = "xno" ; then
    solaris*|sun*)	   CFLAGS="$CFLAGS -mt"
 			   LIBS="$LIBS -lposix4"	;;
    hp-ux*|osf*|aix*)	   enable_threads=no		;;
-   # The DIM libary should not be threaded on an ARM chip, even though
-   # FeeServer uses threads and links against the thread library
-   # The dim library must be compiled with the NOTHREADS flag to avoid
-   # deadlocks
-   #   linux*:arm*)		   enable_threads=no            ;;
    linux*)		   LIBS="$LIBS -pthread"	;;
    lynxos*:rs6000)	   CFLAGS="$CFLAGS -mthreads"	;;
    *)			   LIBS="$LIBS -lpthread"	;;
@@ -123,6 +125,16 @@ AC_MSG_RESULT([$enable_threads])
 
 
 
+AC_ARG_ENABLE([utils],
+              [AC_HELP_STRING([--enable-utils],
+                              [build utility programs])],
+			      [], [enable_utils=yes])
+AC_MSG_CHECKING([whether to build utility programs])
+AC_MSG_RESULT([$enable_utils])
+
+AM_CONDITIONAL(BUILD_UTILS, test "x$enable_utils" = "xyes")
+
+
 dnl
 dnl __________________________________________________________________
 AC_DEBUG
@@ -130,6 +142,7 @@ AC_OPTIMIZATION
 
 dnl __________________________________________________________________
 AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([ipkg/control])
 AC_CONFIG_FILES([extra/Makefile])
 AC_CONFIG_FILES([extra/dim.spec])
 AC_CONFIG_FILES([extra/dim-config])

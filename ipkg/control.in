@@ -1,9 +1,9 @@
-Package: libdim
+Package: @PACKAGE_TARNAME@
 Priority: optional
-Version: 17.05-1 
+Version: @PACKAGE_VERSION@-@IPKG_RELEASE@
 Architecture: arm
 Section: libs
-Source: dim_v17r5.zip
+Source: @PACKAGE_TARNAME@-@PACKAGE_VERSION@.tar.gz
 Maintainer: Tom Dietel <tom@dietel.net>
 Depends: 
 Description: DIM Libraries

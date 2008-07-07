@@ -4,7 +4,9 @@ DESTDIR=/tmp/libdim
 PREFIX=/usr
 
 Makefile:
-	./configure --host=arm-linux-uclibc --prefix=$(PREFIX)
+	./configure --host=arm-linux-uclibc \
+		--enable-threads --disable-utils \
+		--prefix=$(PREFIX)
 
 configure: Makefile
 

@@ -19,15 +19,19 @@ AM_CPPFLAGS		= -I$(srcdir)/dim
 
 lib_LTLIBRARIES	= 	libdim.la
 
+if BUILD_UTILS
 bin_PROGRAMS =		dim_get_service \
 			dim_send_command \
 			dim_check_dns \
 			dim_bridge \
 			dim_did
 
+sbin_PROGRAMS =		dim_dns
+
+endif
+
 #bin_SCRIPTS = 		dim-config
 
-sbin_PROGRAMS =		dim_dns
 
 pkginclude_HEADERS =	dim/dic.h \
 			dim/dim.h \
@@ -47,6 +51,7 @@ dist_noinst_HEADERS =	dim/dim_tcpip.h \
 			src/did/dui_colors.h \
 			src/did/dui_util.h
 
+if BUILD_UTILS
 dim_dns_SOURCES	=  src/dns.c
 dim_dns_LDADD	=  libdim.la
 
@@ -65,6 +70,7 @@ dim_check_dns_LDADD             =  libdim.la
 
 dim_bridge_SOURCES              =  src/util/dimbridge.cxx
 dim_bridge_LDADD                =  libdim.la
+endif
 
 libdim_la_SOURCES =	src/dic.c \
                         src/dis.c \
