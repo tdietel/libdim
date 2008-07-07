@@ -52,12 +52,12 @@ fi
 
 case "$1" in
     start)
-	echo -n "Starting $DESC" "$NAME"
+	echo -n "Starting $DESC" "$NAME "
 	start_daemon $DAEMON $DAEMON_OPTS > $LOGFILE 2>&1 &
 	test $? -ne 0 && echo failed || echo "ok"
 	;;
     stop)
-	echo -n "Stopping $DESC" "$NAME"
+	echo -n "Stopping $DESC" "$NAME "
 	killproc $DAEMON
 	test $? -ne 0 && echo failed || echo "ok"
 	;;
