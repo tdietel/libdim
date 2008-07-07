@@ -3,11 +3,11 @@ dnl
 dnl
 dnl ------------------------------------------------------------------
 
-AC_INIT([Distributed Information Management System], [17.05], 
+AC_INIT([Distributed Information Management System], [17.07], 
         [Clara.Gaspar@cern.ch], dim)
 
-AC_SUBST([RPM_RELEASE],[100])
-AC_SUBST([IPKG_RELEASE],[100])
+AC_SUBST([RPM_RELEASE],[1])
+AC_SUBST([IPKG_RELEASE],[1])
 
 AC_PREREQ(2.50)
 AC_CANONICAL_TARGET
