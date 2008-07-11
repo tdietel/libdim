@@ -1,4 +1,4 @@
-Package: @PACKAGE_TARNAME@
+Package: libdim
 Priority: optional
 Version: @PACKAGE_VERSION@-@IPKG_RELEASE@
 Architecture: arm
