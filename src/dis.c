@@ -1202,7 +1202,7 @@ int req_id;
 			ftime(&timebuf);
 			aux = timebuf.millitm;
 			Dis_packet->time_stamp[0] = htovl(aux);
-			Dis_packet->time_stamp[1] = htovl(timebuf.time);
+			Dis_packet->time_stamp[1] = htovl((int)timebuf.time);
 #else
 			tz = 0;
 		        gettimeofday(&tv, tz);
@@ -2267,6 +2267,7 @@ int *first_time;
 	static char *service_info_buffer;
 	char *buff_ptr;
 
+	DISABLE_AST
 	max_size = (Dis_n_services+10) * (MAX_NAME*2 + 4);
 	if(!curr_allocated_size)
 	{
@@ -2321,6 +2322,7 @@ int *first_time;
 	}
 	*bufp = (int *)service_info_buffer;
 	*size = buff_ptr - service_info_buffer+1;
+	ENABLE_AST
 }
 		
 void add_exit_handler(tag, bufp, size)
@@ -2537,7 +2539,8 @@ SERVICE *servp;
 	int i;
 
 	servp->registered = 1;
-	N_unregistered_services--;
+	if(N_unregistered_services > 0)
+		N_unregistered_services--;
 	for( i = 0; i < MAX_REGISTRATION_UNIT; i++)
 	{
 		if(Unregistered_services[i] == servp)

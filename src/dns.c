@@ -126,8 +126,7 @@ DIC_DNS_PACKET *packet;
 		if(Debug)
 		{
 			dim_print_date_time();
-			printf(" Connection request received - conn: %d to %s@%s\n", conn_id,
-				Net_conns[conn_id].task,Net_conns[conn_id].node );
+			printf(" Connection request received - conn: %d\n", conn_id);
 		}
 		/* handle_conn( conn_id ); */
 		break;
@@ -197,6 +196,7 @@ int tmout_flag;
 #ifdef WIN32
 	extern int time();
 #endif
+	int update_did = 0;
 
 	Dns_conns[conn_id].validity = time(NULL);
 	if( !Dns_conns[conn_id].service_head ) 
@@ -257,7 +257,7 @@ int tmout_flag;
 				if( !dna_write_nowait(conn_id, &dis_packet, DNS_DIS_HEADER) )
 				{
 					dim_print_date_time();
-					printf(" Couldn't write, releasing %d\n",conn_id);
+					printf(" Stop Server: Couldn't write, releasing %d\n",conn_id);
 					fflush(stdout);
 				}
 				dim_print_date_time();
@@ -278,8 +278,11 @@ int tmout_flag;
 			dna_set_test_write(conn_id, 10);
 		}
 		Dns_conns[conn_id].old_n_services = 0;
+/*
 		Dns_conns[conn_id].n_services = 1;
 		do_update_did(conn_id);
+*/
+		update_did = 1;
 /*
 		Dns_conns[conn_id].old_n_services = 0;
 */
@@ -354,6 +357,7 @@ printf(" Service %s already declared by conn %d - %s@%s:%d, Redeclared by conn %
 							servp->conn_id);
 						fflush(stdout);
 						release_conn(servp->conn_id);
+						update_did = 0;
 /*
 						return(0);
 */
@@ -365,7 +369,7 @@ printf(" Service %s already declared by conn %d - %s@%s:%d, Redeclared by conn %
 						if( !dna_write_nowait(conn_id, &dis_packet, DNS_DIS_HEADER) )
 						{
 							dim_print_date_time();
-							printf(" Couldn't write, releasing %d\n",conn_id);
+							printf(" Kill Server: Couldn't write, releasing %d\n",conn_id);
 							fflush(stdout);
 						}
 						dim_print_date_time();
@@ -483,6 +487,8 @@ printf(" Service %s already declared by conn %d - %s@%s:%d, killing server conn 
 			Curr_n_services++;
 		} 
 	}
+	if(update_did)
+		do_update_did(conn_id);
     if( Debug )
 	{
 		if(vtohl(packet->n_services) != 0)
@@ -495,6 +501,7 @@ printf(" Service %s already declared by conn %d - %s@%s:%d, killing server conn 
 			fflush(stdout);
 		}
 	}
+
 	return(1);
 }	
 
@@ -514,21 +521,22 @@ void update_did()
 
 void do_update_did(int conn_id)
 {
-	int n_services;
+	int n_services, old_n_services;
 
 	n_services = Dns_conns[conn_id].n_services;
 /*
 	if(Dns_conns[conn_id].n_services)
 	{
 */
-		if(Dns_conns[conn_id].old_n_services != n_services)
-		{
-			Last_conn_id = conn_id;
-			if((n_services == 1) || (n_services == 0) || (n_services == -1))
-				dis_update_service(Server_new_info_id);
-			dis_update_service(Server_info_id);
-			Dns_conns[conn_id].old_n_services = Dns_conns[conn_id].n_services;
-		}
+	old_n_services = Dns_conns[conn_id].old_n_services;
+	if(old_n_services != n_services)
+	{
+		Last_conn_id = conn_id;
+		if((old_n_services <= 0) || (n_services == 0) || (n_services == -1))
+			dis_update_service(Server_new_info_id);
+		dis_update_service(Server_info_id);
+		Dns_conns[conn_id].old_n_services = Dns_conns[conn_id].n_services;
+	}
 /*
 	}
 */
@@ -570,10 +578,12 @@ int conn_id;
 				conn_id, Net_conns[conn_id].task, Net_conns[conn_id].node);
 			fflush(stdout);
 		}
-		if( !dna_write(conn_id, &dis_packet, DNS_DIS_HEADER) )
+/* moved from dna_write to dna_write_nowait in 14/10/2008 */
+		if( !dna_write_nowait(conn_id, &dis_packet, DNS_DIS_HEADER) )
 		{
 			dim_print_date_time();
-			printf(" Validity : Couldn't write, releasing %d\n",conn_id);
+			printf(" Server Validity: Couldn't write, releasing Conn %3d : Server %s@%s\n",conn_id,
+				Net_conns[conn_id].task, Net_conns[conn_id].node);
 			fflush(stdout);
 			release_conn(conn_id);
 		}
@@ -643,11 +653,14 @@ DIC_DNS_PACKET *packet;
 			dic_packet.node_name[0] = -1; 
 			dic_packet.task_name[0] = 0;
 			dic_packet.node_addr[0] = 0;
+			dic_packet.pid = 0;
 			dic_packet.size = htovl(DNS_DIC_HEADER);
 			if( !dna_write_nowait(conn_id, &dic_packet, DNS_DIC_HEADER) )
 			{
 				dim_print_date_time();
-				printf(" Handle req : Couldn't write, releasing %d\n",conn_id);
+				printf(" Stop Client: Couldn't write, releasing Conn %3d : Client %s@%s\n",conn_id,
+					Net_conns[conn_id].task,
+					Net_conns[conn_id].node);
 				fflush(stdout);
 				release_conn(conn_id);
 			}
@@ -750,6 +763,7 @@ DIC_DNS_PACKET *packet;
 	dic_packet.node_name[0] = 0; 
 	dic_packet.task_name[0] = 0;
 	dic_packet.node_addr[0] = 0;
+	dic_packet.pid = 0;
 	dic_packet.size = htovl(DNS_DIC_HEADER);
 	if( !(servp = service_exists(serv_regp->service_name)) ) 
 	{
@@ -802,6 +816,7 @@ DIC_DNS_PACKET *packet;
 				dic_packet.node_addr[i] =
 					Dns_conns[servp->conn_id].node_addr[i];
 			dic_packet.port = htovl(Dns_conns[servp->conn_id].port);
+			dic_packet.pid = htovl(Dns_conns[servp->conn_id].pid);
 			dic_packet.protocol = htovl(Dns_conns[servp->conn_id].protocol);
 			dic_packet.format = htovl(servp->server_format);
 			strcpy( dic_packet.service_def, servp->serv_def );
@@ -817,8 +832,16 @@ DIC_DNS_PACKET *packet;
 		{
 			if(Debug)
 			{
-				printf("\tService exists in BAD state, queueing request\n");
-				fflush(stdout);
+				if(servp->state == -1)
+				{
+					printf("\tService exists in BAD state, queueing request\n");
+					fflush(stdout);
+				}
+				else
+				{
+					printf("\tService does not exist (other client(s) waiting), queueing request\n");
+					fflush(stdout);
+				}
 			}
 			if(!(NODE *)Dns_conns[conn_id].node_head ) 
 			{
@@ -837,10 +860,14 @@ DIC_DNS_PACKET *packet;
 					 (DLL *) &(nodep->next));
 		}
 	}
-	if( !dna_write(conn_id, &dic_packet, DNS_DIC_HEADER) )
+/* Should it be dna_write_nowait? 16/9/2008 */
+/* moved from dna_write to dna_write_nowait in 14/10/2008 */
+	if( !dna_write_nowait(conn_id, &dic_packet, DNS_DIC_HEADER) )
 	{
 		dim_print_date_time();
-		printf(" Handle req : Couldn't write, releasing %d\n",conn_id);
+		printf(" Client Request: Couldn't write, releasing Conn %3d : Client %s@%s\n",conn_id,
+					Net_conns[conn_id].task,
+					Net_conns[conn_id].node);
 		fflush(stdout);
 		release_conn(conn_id);
 	}
@@ -911,12 +938,31 @@ DNS_SERVICE *servp;
 		for(i = 0; i < 4; i++)
 			packet.node_addr[i] = Dns_conns[servp->conn_id].node_addr[i];
 		packet.port = htovl(Dns_conns[servp->conn_id].port);
+		packet.pid = htovl(Dns_conns[servp->conn_id].pid);
 		packet.protocol = htovl(Dns_conns[servp->conn_id].protocol);
 		packet.size = htovl(DNS_DIC_HEADER);
 		packet.format = htovl(servp->server_format);
 		strcpy( packet.service_def, servp->serv_def );
-		if(dna_write(nodep->conn_id, &packet, DNS_DIC_HEADER))
+/* Should it be dna_write_nowait? 16/9/2008 */
+/* moved from dna_write to dna_write_nowait in 14/10/2008 */
+/*
+		dna_write_nowait(nodep->conn_id, &packet, DNS_DIC_HEADER);
+*/
+		if( !dna_write_nowait(nodep->conn_id, &packet, DNS_DIC_HEADER) )
 		{
+			dim_print_date_time();
+			printf(" Inform Client: Couldn't write, releasing Conn %3d : Client %s@%s\n",nodep->conn_id,
+					Net_conns[nodep->conn_id].task,
+					Net_conns[nodep->conn_id].node);
+			fflush(stdout);
+/*
+release_conn(nodep->conn_id);
+*/
+		}
+/*
+		if(dna_write_nowait(nodep->conn_id, &packet, DNS_DIC_HEADER))
+		{
+*/
 			dll_remove( (DLL *) nodep );
 			ptr = (char *)nodep - (2 * sizeof(void *));
 			full_nodep = (NODE *)ptr;
@@ -924,7 +970,9 @@ DNS_SERVICE *servp;
 			nodep = nodep->prev;
 			free( full_nodep );
 			prevp = nodep;
+/*
 		}
+*/
 	}
 }
 
@@ -1075,7 +1123,7 @@ int conn_id;
 		if(Debug)
 		{
 			dim_print_date_time();
-			printf(" Conn %3d : ERROR - Strange thing %s@%s died\n",
+			printf(" Conn %3d : Undefined Type %s@%s died\n",
 				conn_id, Net_conns[conn_id].task,
 				Net_conns[conn_id].node);
 			fflush(stdout);
@@ -1197,13 +1245,16 @@ int *first_time;
 {
 	static int curr_allocated_size = 0;
 	static char *info_buffer;
+	static int *pid_buffer, pid_size;
+	int pid_index = 0;
 	DNS_CONNECTION *connp;
-	int i, max_size, j, n;
+	int i, max_size, max_pid_size, j, n;
 	int n_server = 0;
 	char aux[MAX_NAME], *ptr, server[MAX_NAME], *info_buffer_ptr;
 	DNS_SERVICE *servp;
 	int find_services();
 
+	DISABLE_AST
  	for( i = 0; i< Curr_N_Conns; i++ )
 	{
 		if( Dns_conns[i].src_type == SRC_DIS )
@@ -1211,19 +1262,24 @@ int *first_time;
 			n_server++;
 		}
 	}
-	max_size = sizeof(DNS_SERVER_INFO) * n_server;   
+	max_size = (sizeof(DNS_SERVER_INFO) + 16) * n_server;
+	max_pid_size = sizeof(int) * n_server;
 	if(!curr_allocated_size)
 	{
 		info_buffer = (char *)malloc(max_size);
 		curr_allocated_size = max_size;
+		pid_buffer = (int *)malloc(max_pid_size);
 	}
 	else if (max_size > curr_allocated_size)
 	{
 		free(info_buffer);
 		info_buffer = (char *)malloc(max_size);
 		curr_allocated_size = max_size;
+		free(pid_buffer);
+		pid_buffer = (int *)malloc(max_pid_size);
 	}
 	info_buffer[0] = '\0';
+	pid_buffer[0] = 0;
 
 	info_buffer_ptr = info_buffer;
 	if(*first_time)
@@ -1262,6 +1318,8 @@ int *first_time;
 				strcat(server,"|");
 				strcpy(info_buffer_ptr, server);
 				info_buffer_ptr += strlen(server);
+				pid_buffer[pid_index] = connp->pid;
+				pid_index++;
 			}
 		}
 	}
@@ -1278,10 +1336,25 @@ int *first_time;
 		strcat(info_buffer,"@");
 		strcat(info_buffer, connp->node_name);
 		strcat(info_buffer,"|");
+		pid_buffer[pid_index] = connp->pid;
+		pid_index++;
 	}
 	info_buffer[strlen(info_buffer) - 1] = '\0';
+	info_buffer_ptr = &info_buffer[strlen(info_buffer)+1];
+	pid_size = 0;
+	for(i = 0; i < pid_index; i++)
+	{
+		if(i != (pid_index -1))
+			sprintf(server, "%d|",pid_buffer[i]);
+		else
+			sprintf(server, "%d",pid_buffer[i]);
+		strcpy(info_buffer_ptr, server);
+		info_buffer_ptr += strlen(server);
+		pid_size += strlen(server);
+	}
 	*bufp = (int *)info_buffer;
-	*size = strlen(info_buffer)+1;
+	*size = strlen(info_buffer)+1+pid_size+1;
+	ENABLE_AST
 }
 
 int main(argc,argv)
@@ -1306,13 +1379,14 @@ char **argv;
 			exit(0);
 		}
 	}
+	dim_set_write_timeout(10);
 	dim_init();
 	conn_arr_create( SRC_DNS );
 	service_init();
 	Timer_q = dtq_create();
 	get_node_name(node);
 	dim_print_date_time();
-	printf(" DNS (pid %d) starting up on %s\n",getpid(),node); 
+	printf(" DNS version %d starting up on %s\n",DIM_VERSION_NUMBER, node); 
 	fflush(stdout);
 
 	Server_new_info_id = dis_add_service( "DIS_DNS/SERVER_LIST", "C", 0, 0, 
@@ -1376,10 +1450,10 @@ void print_stats()
 		switch(Dns_conns[i].src_type)
 		{
 		case SRC_DIS :
-			printf("%d - Server %s@%s, %d services\n",
+			printf("%d - Server %s@%s (PID %d) %d services\n",
 				i, Dns_conns[i].task_name,
 				Dns_conns[i].node_name,
-				Dns_conns[i].n_services );
+				Dns_conns[i].pid, Dns_conns[i].n_services);
 			fflush(stdout);
 			n_services +=  Dns_conns[i].n_services;
 			n_servers++;
@@ -1396,11 +1470,11 @@ void print_stats()
 			if(Dna_conns[i].busy)
 			{
 				if(Net_conns[i].task[0] && Net_conns[i].node[0])
-					printf("%d - Busy - %s@%s\n",
+					printf("%d - Undefined %s@%s\n",
 						i, Net_conns[i].task,
 						Net_conns[i].node);
 				else 
-					printf("%d - Busy\n", i);
+					printf("%d - Undefined\n", i);
 				fflush(stdout);
 				n_conns++;
 			}
@@ -1450,7 +1524,7 @@ void kill_servers()
 			if( !dna_write_nowait(i, &dis_packet, DNS_DIS_HEADER) )
 			{
 				dim_print_date_time();
-				printf(" Kill : Couldn't write, releasing %d\n",i);
+				printf(" Kill Server: Couldn't write, releasing %d\n",i);
 				fflush(stdout);
 				release_conn(i);
 			}

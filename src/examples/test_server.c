@@ -52,14 +52,18 @@ int *code;
 	exit(*code);
 }
 
+int NewData;
+int NewIds[10];
+
 main(argc,argv)
 int argc;
 char **argv;
 {
 	int i, id, *ptr;
 	char aux[80];
-	char name[84];
+	char name[84], name1[132];
 	int index = 0;
+	int on = 0;
 
 	dis_add_exit_handler(exit_cmnd);
 	dis_add_client_exit_handler(client_exited);
@@ -111,7 +115,30 @@ char **argv;
 		}
 		sleep(1);
 */
+/*
 		pause();
+		*/
+		if(!on)
+		{
+			for(i = 0; i < 10; i++)
+			{
+				sprintf(name1,"NewService%d",i);
+				NewIds[i] = dis_add_service( name1, "i", &NewData, sizeof(NewData), 
+					(void *)0, 0 );
+			}
+			dis_start_serving( argv[1] );
+			on = 1;
+		}
+		else
+		{
+			for(i = 0; i < 10; i++)
+			{
+				dis_remove_service(NewIds[i]);
+			}
+			on = 0;
+		}
+		sleep(10);
+
 	}
 }
 

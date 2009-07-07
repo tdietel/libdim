@@ -1,5 +1,5 @@
 
-libdim 16.03
+libdim 18.05
 
 This directory contains a minimalistic, stripped DIM libarary. It is
 intended to be used on DCS boards, where disk space is very limited.
@@ -17,6 +17,9 @@ ipkg-utils and fakeroot are installed (available at [2]), this can be
 done by executing `fakeroot ipkg-buildpackage` after bootstrapping and 
 configuring the package.
 
+To update to a new version of DIM, it should be sufficient to copy the 
+src/ and dim/ subdirectories from the .zip file to this directory, change 
+the version number in configure.ac and recompile. 
 
 [1] http://fmd.nbi.dk/fmd/fee/dim/
 [2] http://alice./physi.uni-heidelberg.de/software/yum

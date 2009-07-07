@@ -34,6 +34,15 @@ int *tag, *size;
 }
 */
 
+void got_servers( int *tag, char *list, int *size)
+{
+	printf("%s",list);
+}
+
+void got_services( int *tag, char *list, int *size)
+{
+	printf("%s",list);
+}
 
 void rout( tag, buf, size )
 char *buf;
@@ -49,6 +58,8 @@ int *tag, *size;
 	{
 		char node[128], str[256];
 		int secs, millis;
+		time_t tsecs;
+
 		dic_get_dns_node(node);
 		printf("DNS node = %s\n",node);
 		printf("size = %d\n",*size);
@@ -56,7 +67,8 @@ int *tag, *size;
 		printf("t.i = %d, t.d = %2.2f, t.s = %d, t.c = %c, t.f = %2.2f, t.str = %s\n",
 			t.i,t.d,t.s,t.c,t.f,t.str);
 		dic_get_timestamp(0, &secs, &millis);
-		my_ctime((time_t *)&secs, str, 128);
+		tsecs = secs;
+		my_ctime(&tsecs, str, 128);
 		str[strlen(str)-1] = '\0';
 		printf("timestamp = %s.%d\n",str,millis);
 
@@ -111,6 +123,10 @@ char **argv;
 */
 
 	sprintf(aux,"%s/TEST_CMD",argv[2]);
+	dic_info_service("DIS_DNS/SERVER_LIST",MONITORED, 0, 0, 0, got_servers, 0,
+		"not there", 10);
+	dic_info_service("xx/SERVICE_LIST",MONITORED, 0, 0, 0, got_services, 0,
+		"not there", 10);
 	while(1)
 	{
 		sleep(10);

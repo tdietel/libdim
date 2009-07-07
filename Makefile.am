@@ -23,6 +23,7 @@ if BUILD_UTILS
 bin_PROGRAMS =		dim_get_service \
 			dim_send_command \
 			dim_check_dns \
+			dim_check_servers \
 			dim_bridge \
 			dim_did
 
@@ -67,6 +68,9 @@ dim_send_command_LDADD          =  libdim.la
 
 dim_check_dns_SOURCES           =  src/util/check_dns.cxx
 dim_check_dns_LDADD             =  libdim.la
+
+dim_check_servers_SOURCES	=  src/util/check_dim_servers.cxx
+dim_check_servers_LDADD		=  libdim.la
 
 dim_bridge_SOURCES              =  src/util/dimbridge.cxx
 dim_bridge_LDADD                =  libdim.la
