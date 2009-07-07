@@ -79,6 +79,7 @@ DIM utility programs
 %defattr(-,root,root)
 /usr/bin/dim_bridge
 /usr/bin/dim_check_dns
+/usr/bin/dim_check_servers
 /usr/bin/dim_did
 /usr/bin/dim_get_service
 /usr/bin/dim_send_command
