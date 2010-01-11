@@ -17,7 +17,8 @@ AM_CPPFLAGS		= -I$(srcdir)/dim
 #dist_noinst_DATA =	dim.spec
 
 
-lib_LTLIBRARIES	= 	libdim.la
+lib_LTLIBRARIES	= 	libdim.la \
+			libjdim.la
 
 if BUILD_UTILS
 bin_PROGRAMS =		dim_get_service \
@@ -96,6 +97,28 @@ libdim_la_SOURCES =	src/dic.c \
 			src/tokenstring.cxx
 
 libdim_la_LDFLAGS = -version-info $(LIB_VERSION)
+
+libjdim_la_SOURCES =	src/dic.c \
+                        src/dis.c \
+			src/dna.c \
+			src/sll.c \
+			src/dll.c \
+			src/hash.c \
+			src/swap.c \
+			src/copy_swap.c \
+			src/open_dns.c \
+			src/conn_handler.c \
+			src/tcpip.c \
+			src/dtq.c \
+			src/dim_thr.c \
+			src/utilities.c \
+			src/diccpp.cxx \
+			src/discpp.cxx \
+			src/dimcpp.cxx \
+			src/tokenstring.cxx \
+			src/dim_jni.c
+
+libjdim_la_LDFLAGS = -version-info $(LIB_VERSION)
 
 #libdim_la_CPPFLAGS = -I$(srcdir)/dim
 #
