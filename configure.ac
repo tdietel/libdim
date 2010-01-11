@@ -6,7 +6,7 @@ dnl ------------------------------------------------------------------
 AC_INIT([Distributed Information Management System], [18.05], 
         [Clara.Gaspar@cern.ch], dim)
 
-AC_SUBST([RPM_RELEASE],[2])
+AC_SUBST([RPM_RELEASE],[3])
 AC_SUBST([IPKG_RELEASE],[1])
 
 AC_PREREQ(2.50)
@@ -124,7 +124,6 @@ AC_MSG_RESULT([$enable_threads])
 
 
 
-
 AC_ARG_ENABLE([utils],
               [AC_HELP_STRING([--enable-utils],
                               [build utility programs])],
@@ -139,6 +138,18 @@ dnl
 dnl __________________________________________________________________
 AC_DEBUG
 AC_OPTIMIZATION
+
+
+
+dnl __________________________________________________________________
+
+AC_ARG_WITH(java,AC_HELP_STRING([--with-java=DIR],
+                [specify which java version to use]),
+            CPPFLAGS="$CPPFLAGS -I$withval/include -I$withval/include/linux",)
+
+AC_CHECK_HEADER(jni.h,,AC_MSG_ERROR([Can't find Java Native Interface!]))
+
+
 
 dnl __________________________________________________________________
 AC_CONFIG_FILES([Makefile])

@@ -45,7 +45,8 @@ pkginclude_HEADERS =	dim/dic.h \
 			dim/dis.hxx \
 			dim/dllist.hxx \
 			dim/sllist.hxx \
-			dim/tokenstring.hxx
+			dim/tokenstring.hxx \
+			dim/dim_jni.h
 
 dist_noinst_HEADERS =	dim/dim_tcpip.h \
 			dim/dim_core.hxx \
@@ -119,6 +120,12 @@ libjdim_la_SOURCES =	src/dic.c \
 			src/dim_jni.c
 
 libjdim_la_LDFLAGS = -version-info $(LIB_VERSION)
+
+
+.PHONY: rpm
+rpm:
+	make dist
+	rpmbuild -ta $(PACKAGE)-$(VERSION).tar.gz
 
 #libdim_la_CPPFLAGS = -I$(srcdir)/dim
 #
