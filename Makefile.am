@@ -17,8 +17,12 @@ AM_CPPFLAGS		= -I$(srcdir)/dim
 #dist_noinst_DATA =	dim.spec
 
 
-lib_LTLIBRARIES	= 	libdim.la \
-			libjdim.la
+
+if BUILD_LIBJDIM
+lib_LTLIBRARIES	= 	libdim.la libjdim.la
+else
+lib_LTLIBRARIES	= 	libdim.la 
+endif
 
 if BUILD_UTILS
 bin_PROGRAMS =		dim_get_service \

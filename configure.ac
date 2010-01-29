@@ -150,6 +150,7 @@ AC_ARG_WITH(java,AC_HELP_STRING([--with-java=DIR],
 AS_IF([test "x$with_java" != "x"], 
 	    [AC_CHECK_HEADER(jni.h,,AC_MSG_ERROR([Can't find Java Native Interface!]))], )
 
+AM_CONDITIONAL(BUILD_LIBJDIM, test "x$with_java" != "x")
 
 
 dnl __________________________________________________________________
