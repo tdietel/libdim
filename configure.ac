@@ -147,7 +147,8 @@ AC_ARG_WITH(java,AC_HELP_STRING([--with-java=DIR],
                 [specify which java version to use]),
             CPPFLAGS="$CPPFLAGS -I$withval/include -I$withval/include/linux",)
 
-AC_CHECK_HEADER(jni.h,,AC_MSG_ERROR([Can't find Java Native Interface!]))
+AS_IF([test "x$with_java" != "x"], 
+	    [AC_CHECK_HEADER(jni.h,,AC_MSG_ERROR([Can't find Java Native Interface!]))], )
 
 
 
