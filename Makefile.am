@@ -127,9 +127,28 @@ libjdim_la_LDFLAGS = -version-info $(LIB_VERSION)
 
 
 .PHONY: rpm
+
+RPM_TOP_DIR = $(shell awk '$$1=="%_topdir" {print $$2}' < $(HOME)/.rpmmacros)
+UPLOAD_BASE = "http://alice00.physi.uni-heidelberg.de/software/upload/"
+UPLOAD_URL  = "$(UPLOAD_BASE)rpm-upload-slc5.cgi"
+
 rpm:
 	make dist
 	rpmbuild -ta $(PACKAGE)-$(VERSION).tar.gz
+
+
+upload:	$(RPM_TOP_DIR)/RPMS/i386/libdim1-$(VERSION)-1.i386.rpm \
+	$(RPM_TOP_DIR)/RPMS/i386/libjdim1-$(VERSION)-1.i386.rpm \
+	$(RPM_TOP_DIR)/RPMS/i386/libdim-devel-$(VERSION)-1.i386.rpm \
+	$(RPM_TOP_DIR)/RPMS/i386/dim-utils-$(VERSION)-1.i386.rpm \
+	$(RPM_TOP_DIR)/RPMS/i386/dim-dns-$(VERSION)-1.i386.rpm 
+
+	@echo "Enter credentials for package upload"
+	@read -p "Username: " PKG_USER ; \
+	read -p "Password: " -s PKG_PASS ; echo ; \
+	for i in $^; do \
+		curl -u $$PKG_USER:$$PKG_PASS -F rpm=@$$i $(UPLOAD_URL); \
+	done
 
 #libdim_la_CPPFLAGS = -I$(srcdir)/dim
 #

@@ -102,13 +102,12 @@ _DIM_PROTO( void print_hash_table,       (void) );
 _DIM_PROTO( static void release_conn,    (int conn_id) );
 
 
-static void recv_rout( conn_id, packet, size, status )
-int conn_id, size, status;
-DIC_DNS_PACKET *packet;
+static void recv_rout( int conn_id, DIC_DNS_PACKET *packet, int size, int status )
 {
 	int handle_registration();
 	int handle_client_request();
 
+	if(size){}
 	switch(status)
 	{
 	case STA_DISC:     /* connection broken */
@@ -160,10 +159,10 @@ DIC_DNS_PACKET *packet;
 	}
 }
 
-static void error_handler(conn_id, severity, errcode, reason)
-int conn_id, severity, errcode;
-char *reason;
+static void error_handler(int conn_id, int severity, int errcode, char *reason)
 {
+	if(conn_id){}
+	if(errcode){}
 	dim_print_msg(reason, severity);
 /*
 	if(severity == 3)
@@ -174,10 +173,7 @@ char *reason;
 */
 }
 
-int handle_registration( conn_id, packet, tmout_flag )
-int conn_id;
-DIS_DNS_PACKET *packet;
-int tmout_flag;
+int handle_registration( int conn_id, DIS_DNS_PACKET *packet, int tmout_flag )
 {
 	DNS_SERVICE *servp;
 	DNS_DIS_PACKET dis_packet;
@@ -185,7 +181,7 @@ int tmout_flag;
 	int format;
 	DNS_CONNECTION *connp;
 	int n_services;
-	char *ptr, *ptr1;
+	char *ptr, *ptr1, *ptrt;
 	int found;
 	void do_update_did();
 	void do_inform_clients();
@@ -197,6 +193,7 @@ int tmout_flag;
 	extern int time();
 #endif
 	int update_did = 0;
+	int name_too_long = 0;
 
 	Dns_conns[conn_id].validity = time(NULL);
 	if( !Dns_conns[conn_id].service_head ) 
@@ -214,6 +211,7 @@ int tmout_flag;
 			MAX_NODE_NAME ); 
 		strncpy( Dns_conns[conn_id].task_name, packet->task_name,
 			MAX_TASK_NAME-4 );
+		strcpy(Dns_conns[conn_id].long_task_name, packet->task_name);
 		Dns_conns[conn_id].task_name[MAX_TASK_NAME-4-1] = '\0';
 		for(i = 0; i < 4; i++)
 			Dns_conns[conn_id].node_addr[i] =  packet->node_addr[i];
@@ -303,6 +301,8 @@ int tmout_flag;
 		}
 	}
 	n_services = vtohl(packet->n_services);
+	if(strlen(Dns_conns[conn_id].task_name) == MAX_TASK_NAME-4-1)
+		name_too_long = 1;
 	for( i = 0; i < n_services; i++ ) 
 	{
 		if(n_services == 1)
@@ -345,15 +345,17 @@ int tmout_flag;
 					  (!strcmp(Dns_conns[servp->conn_id].node_name, Dns_conns[conn_id].node_name)))
 					{
 						dim_print_date_time();
-printf(" Service %s already declared by conn %d - %s@%s:%d, Redeclared by conn %d - %s@%s:%d (same server) - Closing old conn %d\n",
+printf(" Service %s already declared by conn %d - %s@%s:%d (PID %d), Redeclared by conn %d - %s@%s:%d (PID %d)(same server) - Closing old conn %d\n",
 							servp->serv_name, servp->conn_id, 
 							Dns_conns[servp->conn_id].task_name,
 							Dns_conns[servp->conn_id].node_name,
 							Dns_conns[servp->conn_id].port,
+							Dns_conns[servp->conn_id].pid,
 							conn_id,
 							Dns_conns[conn_id].task_name,
 							Dns_conns[conn_id].node_name,
 							Dns_conns[conn_id].port,
+							Dns_conns[conn_id].pid,
 							servp->conn_id);
 						fflush(stdout);
 						release_conn(servp->conn_id);
@@ -373,15 +375,17 @@ printf(" Service %s already declared by conn %d - %s@%s:%d, Redeclared by conn %
 							fflush(stdout);
 						}
 						dim_print_date_time();
-printf(" Service %s already declared by conn %d - %s@%s:%d, killing server conn %d - %s@%s:%d \n",
+printf(" Service %s already declared by conn %d - %s@%s:%d (PID %d), killing server conn %d - %s@%s:%d (PID %d) \n",
 							servp->serv_name, servp->conn_id, 
 							Dns_conns[servp->conn_id].task_name,
 							Dns_conns[servp->conn_id].node_name,
 							Dns_conns[servp->conn_id].port,
+							Dns_conns[servp->conn_id].pid,
 							conn_id,
 							Dns_conns[conn_id].task_name,
 							Dns_conns[conn_id].node_name,
-							Dns_conns[conn_id].port);
+							Dns_conns[conn_id].port,
+							Dns_conns[conn_id].pid);
 						fflush(stdout);
 
 						release_conn(conn_id);
@@ -467,6 +471,16 @@ printf(" Service %s already declared by conn %d - %s@%s:%d, killing server conn 
 		if(!(servp = service_exists(packet->services[i].service_name)))
 		{
 			servp = (DNS_SERVICE *)malloc(sizeof(DNS_SERVICE));
+			if(name_too_long)
+			{
+				if(strstr(packet->services[i].service_name,"/CLIENT_LIST"))
+				{
+					strncpy(Dns_conns[conn_id].long_task_name, packet->services[i].service_name,
+						MAX_TASK_NAME*2);
+					ptrt = strstr(Dns_conns[conn_id].long_task_name,"/CLIENT_LIST");
+					*ptrt = '\0';
+				}
+			}
 			strncpy( servp->serv_name,
 				packet->services[i].service_name,
 				MAX_NAME );
@@ -494,9 +508,10 @@ printf(" Service %s already declared by conn %d - %s@%s:%d, killing server conn 
 		if(vtohl(packet->n_services) != 0)
 		{
 			dim_print_date_time();
-			printf( " Conn %3d : Server %s@%s registered %d services\n",
+			printf( " Conn %3d : Server %s@%s (PID %d) registered %d services\n",
 				conn_id, Dns_conns[conn_id].task_name,
 				Dns_conns[conn_id].node_name, 
+				Dns_conns[conn_id].pid,
 				vtohl(packet->n_services) );
 			fflush(stdout);
 		}
@@ -542,8 +557,7 @@ void do_update_did(int conn_id)
 */
 }
 
-void check_validity(conn_id)
-int conn_id;
+void check_validity(int conn_id)
 {
 	int time_diff;
 	DNS_DIS_PACKET dis_packet;
@@ -555,8 +569,8 @@ int conn_id;
 		if(Dns_conns[conn_id].n_services != -1)
 		{
 			dim_print_date_time();
-			printf(" Server %s has been set in error\n",
-				Dns_conns[conn_id].task_name);
+			printf(" Server %s (%s@%s) has been set in error\n",
+				Dns_conns[conn_id].task_name, Net_conns[conn_id].task, Net_conns[conn_id].node);
 			fflush(stdout);
 			set_in_error(conn_id);
 			return;
@@ -592,9 +606,7 @@ int conn_id;
 }		
 
 
-int handle_client_request( conn_id, packet )
-int conn_id;
-DIC_DNS_PACKET *packet;
+int handle_client_request( int conn_id, DIC_DNS_PACKET *packet )
 {
 	DNS_SERVICE *servp;
 	NODE *nodep;
@@ -871,6 +883,7 @@ DIC_DNS_PACKET *packet;
 		fflush(stdout);
 		release_conn(conn_id);
 	}
+
 	return(1);
 }
 
@@ -918,8 +931,7 @@ void do_inform_clients(int conn_id)
 }
 
 
-void inform_clients(servp)
-DNS_SERVICE *servp;
+void inform_clients(DNS_SERVICE *servp)
 {
 	RED_NODE *nodep, *prevp; 
 	NODE *full_nodep; 
@@ -977,8 +989,7 @@ release_conn(nodep->conn_id);
 }
 
 #ifdef VMS
-static release_client(conn_id)
-int conn_id;
+static release_client(int conn_id)
 {
 char *ptr_task;
 char *ptr_node;
@@ -1010,8 +1021,7 @@ int i;
 }
 #endif
 
-static void release_conn(conn_id)
-int conn_id;
+static void release_conn(int conn_id)
 {
 	DNS_SERVICE *servp, *old_servp;
 	NODE *nodep, *old_nodep;
@@ -1133,7 +1143,7 @@ int conn_id;
 }
 
 
-void set_in_error(conn_id)
+void set_in_error(int conn_id)
 {
 	DNS_SERVICE *servp;
 
@@ -1150,13 +1160,9 @@ void set_in_error(conn_id)
 	}
 }
 
-void get_dns_server_info(tag, bufp, size, first_time)
-int *tag;
-int **bufp;
-int *size;
-int *first_time;
+void get_dns_server_info(int *tag, int **bufp, int *size, int *first_time)
 {
-	
+	if(tag){}
 	if(*first_time)
 	{
 
@@ -1177,10 +1183,7 @@ int *first_time;
 }
 
 
-void send_dns_server_info(conn_id, bufp, size)
-int conn_id;
-int **bufp;
-int *size;
+void send_dns_server_info(int conn_id, int **bufp, int *size)
 {
 	static int curr_allocated_size = 0;
 	static DNS_DID *dns_info_buffer;
@@ -1237,24 +1240,23 @@ int *size;
 	ENABLE_AST
 }
 
-void get_new_dns_server_info(tag, bufp, size, first_time)
-int *tag;
-int **bufp;
-int *size;
-int *first_time;
+void get_new_dns_server_info(int *tag, int **bufp, int *size, int *first_time)
 {
 	static int curr_allocated_size = 0;
 	static char *info_buffer;
 	static int *pid_buffer, pid_size;
 	int pid_index = 0;
 	DNS_CONNECTION *connp;
-	int i, max_size, max_pid_size, j, n;
+	int i, max_size, max_pid_size/*, j, n*/;
 	int n_server = 0;
-	char aux[MAX_NAME], *ptr, server[MAX_NAME], *info_buffer_ptr;
+	char /*aux[MAX_NAME], *ptr, */ server[MAX_NAME], *info_buffer_ptr;
+/*
 	DNS_SERVICE *servp;
 	int find_services();
+*/
 
 	DISABLE_AST
+	if(tag){}
  	for( i = 0; i< Curr_N_Conns; i++ )
 	{
 		if( Dns_conns[i].src_type == SRC_DIS )
@@ -1262,7 +1264,7 @@ int *first_time;
 			n_server++;
 		}
 	}
-	max_size = (sizeof(DNS_SERVER_INFO) + 16) * n_server;
+	max_size = (sizeof(DNS_SERVER_INFO) + MAX_TASK_NAME) * n_server;
 	max_pid_size = sizeof(int) * n_server;
 	if(!curr_allocated_size)
 	{
@@ -1289,10 +1291,11 @@ int *first_time;
 			if( Dns_conns[i].src_type == SRC_DIS )
 			{
 				connp = &Dns_conns[i];
+/*
 				if(strlen(connp->task_name) == MAX_TASK_NAME-4-1)
 				{
 					strcpy(aux,connp->task_name);
-					strcat(aux,"*/CLIENT_LIST");
+					strcat(aux,"--CLIENT_LIST");
 					n = find_services(aux);
 					for(j = 0; j < n; j++)
 					{
@@ -1311,8 +1314,11 @@ int *first_time;
 				}
 				else
 				{
-					strcpy(server, connp->task_name);
+*/
+					strcpy(server, connp->long_task_name);
+/*
 				}
+*/
 				strcat(server,"@");
 				strcat(server, connp->node_name);
 				strcat(server,"|");
@@ -1332,7 +1338,7 @@ int *first_time;
 			strcat(info_buffer, "!");
 		else
 			strcat(info_buffer, "-");
-		strcat(info_buffer, connp->task_name);
+		strcat(info_buffer, connp->long_task_name);
 		strcat(info_buffer,"@");
 		strcat(info_buffer, connp->node_name);
 		strcat(info_buffer,"|");
@@ -1357,9 +1363,7 @@ int *first_time;
 	ENABLE_AST
 }
 
-int main(argc,argv)
-int argc;
-char **argv;
+int main(int argc, char **argv)
 {
 	int i, protocol, dns_port;
 	int *bufp;
@@ -1544,8 +1548,7 @@ void service_init()
 }
 
 
-void service_insert(servp)
-RED_DNS_SERVICE *servp;
+void service_insert(RED_DNS_SERVICE *servp)
 {
 	int index;
 
@@ -1555,8 +1558,7 @@ RED_DNS_SERVICE *servp;
 }
 
 
-void service_remove(servp)
-RED_DNS_SERVICE *servp;
+void service_remove(RED_DNS_SERVICE *servp)
 {
 	if( servp->node_head )
 		free( servp->node_head );
@@ -1564,8 +1566,7 @@ RED_DNS_SERVICE *servp;
 }
 
 
-DNS_SERVICE *service_exists(name)
-char *name;
+DNS_SERVICE *service_exists(char *name)
 {
 	int index;
 	RED_DNS_SERVICE *servp;
@@ -1587,7 +1588,7 @@ void print_hash_table()
 {
 	int i;
 	RED_DNS_SERVICE *servp;
-	int n_entries, max_entry_index;
+	int n_entries, max_entry_index = 0;
 	int max_entries = 0;
 
 #ifdef VMS
@@ -1634,18 +1635,32 @@ void print_hash_table()
 	fflush(stdout);
 }
 
-int find_services(wild_name)
-char *wild_name;
+int find_services(char *wild_name)
 {
 
 	int i;
 	RED_DNS_SERVICE *servp;
+	DNS_SERVICE *servp1;
 	char tmp[MAX_NAME], *ptr, *ptr1, *dptr, *dptr1;
 	int match, count = 0;
 
 	Service_info_list = (DNS_SERVICE **)
 		malloc(Curr_n_services*sizeof(DNS_SERVICE *));
 
+	if(!strchr(wild_name, '*'))
+	{
+		servp1 = service_exists(wild_name);
+		if(servp1)
+		{
+			if(servp1->state == 1)
+			{
+				Service_info_list[count] = (DNS_SERVICE *)servp1;
+				count++;
+				return 1;
+			}
+		}
+		return 0;
+	}
 	for( i = 0; i < MAX_HASH_ENTRIES; i++ ) 
 	{
 		servp = Service_hash_table[i];
@@ -1726,15 +1741,28 @@ char *wild_name;
 	return(count);
 }
 
-void set_rpc_info(tag, buffer, size)
-int *tag, *size;
-char *buffer;
+void set_rpc_info(int *tag, char *buffer, int *size)
 {
 	char aux[MAX_NAME], rpcaux[MAX_NAME+32], *ptr, *rpcptr;
-    int i, n, rpc, id[2];
+    int i, n, rpc, id[2], conn_id;
 	DNS_SERVICE *servp, *aux_servp;
 
+	if(size){}
+	if(tag){}
+	if(Debug)
+	{
+		dim_print_date_time();
+		conn_id = dis_get_conn_id();
+		printf(" Got Browse Request <%s> from conn: %d %s@%s\n", buffer, conn_id,
+			Net_conns[conn_id].task,Net_conns[conn_id].node);
+	}
 	n = find_services(buffer);
+	if(Debug)
+	{
+		dim_print_date_time();
+		conn_id = dis_get_conn_id();
+		printf(" Browse Request <%s> found %d services\n", buffer, n);
+	}
 	if(!Rpc_info_size)
 	{
 		Rpc_info = malloc(MAX_NAME*(n+1)*2);
@@ -1819,11 +1847,10 @@ char *buffer;
 	free(Service_info_list);
 }
 
-void get_rpc_info(tag, buffer, size)
-int *tag, *size;
-char **buffer;
+void get_rpc_info(int *tag, char **buffer, int *size)
 {
-	
+
+	if(tag){}
 	*buffer = Rpc_info;
 	*size = strlen(Rpc_info)+1;
 }

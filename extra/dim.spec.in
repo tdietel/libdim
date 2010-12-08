@@ -2,7 +2,7 @@ Summary: DIM - Distributed Information Management
 Name: @PACKAGE_TARNAME@
 Version: @PACKAGE_VERSION@
 Release: @RPM_RELEASE@
-Copyright: GPL
+License: GPL
 Group: Applications/Communications
 Source: %{name}-%{version}.tar.gz
 Distribution: ALICE TRD
@@ -15,7 +15,7 @@ DIM - Distributed Information Management
 
 %prep
 %setup
-%configure --with-java=/usr/java/jdk1.6.0_17
+%configure --with-java=/usr/lib/jvm/java-1.6.0-openjdk
 
 %build
 make
@@ -53,7 +53,7 @@ ldconfig
 Summary: Shared libraries for DIM
 Group: Development/Libraries
 
-requires: jdk = 2000:1.6.0_17-fcs
+requires: java-1.6.0-openjdk
 
 %description -n libjdim1
 This package contains the shared libraries for DIM.

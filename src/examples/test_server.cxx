@@ -12,6 +12,7 @@ class ErrorHandler : public DimErrorHandler
 	{
 		int index = 0;
 		char **services;
+		if(code){}
 		cout << severity << " " << msg << endl;
 		services = DimServer::getClientServices();
 		cout<< "from "<< DimServer::getClientName() << " services:" << endl;
@@ -52,9 +53,21 @@ class CmndServ : public DimCommand, public DimTimer
 			index++;
 		}
 	}
+
 public :
 	CmndServ() : DimCommand("TEST/CMND","C"), 
 				 servstr("TEST/STRVAL","empty") {};
+/*
+	void handleIt()
+	{
+		int index = 0;
+		char **services;
+		dim_print_date_time();
+		cout << "Command " << getString() << " received" << endl;
+		cout << "time: "<<getTimestamp()<<" millies: "<<getTimestampMillisecs()<<endl;
+		servstr.updateService(getString()); 
+	}
+*/
 };
 
 /*
@@ -113,6 +126,14 @@ int main()
 	string s1;
 	bool boolval;
 	ServWithHandler *testServ;
+	DimServerDns *newDns;
+	char *extraDns = 0;
+	DimService *new_servint;
+
+	DimServer::start("TEST");
+	extraDns = DimUtil::getEnvVar("EXTRA_DNS_NODE");
+	if(extraDns)
+		newDns = new DimServerDns(extraDns, 0, "new_TEST");
 
 /*
 	int i, arr[15000];
@@ -126,6 +147,12 @@ int main()
 	s1 = "hello";
 	add_serv(ival);
 	DimService servint("TEST/INTVAL",ival);
+
+	if(extraDns)
+	{
+		new_servint = new DimService(newDns, "new_TEST/INTVAL",ival);
+	}
+
 	add_serv_str(s1);
 	boolval = 0;
 	add_serv_bool(boolval);
@@ -137,7 +164,6 @@ int main()
 //	farr[1] = 2.3;
 //	farrp = new DimService("/PCITCO147/sensors/fan/input","F", farr, sizeof(farr));
 
-	DimServer::start("TEST");
 
 /*
 //	DimServer::autoStartOff();
@@ -160,6 +186,13 @@ int main()
 	while(1)
 	{
 		sleep(5);
+/*
+		while(cmdsvr.hasNext())
+		{
+			cmdsvr.getNext();
+			cmdsvr.handleIt();
+		}
+*/
 		s1 = "hello1";
 		if(!boolval)
 			boolval = 1;
@@ -167,6 +200,8 @@ int main()
 			boolval = 0;
 		ival++;
 		servint.updateService();
+		if(extraDns)
+			new_servint->updateService();
 	}
 	return 0;
 }

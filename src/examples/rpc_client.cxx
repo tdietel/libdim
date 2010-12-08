@@ -9,7 +9,7 @@ public:
 		dim_print_date_time();
 		cout << "Callback RPC Received : " << getInt() << endl;
 	}
-	Rpc(char *name) :	DimRpcInfo(name, 5, -1) {};
+	Rpc(char *name) :	DimRpcInfo(name, 1, -1) {};
 };
 
 typedef struct tst{
@@ -36,20 +36,48 @@ public:
 void do_work(void *tag)
 {
 	DimRpcInfo *myRpc;
+//	Rpc *myRpc;
 	char name[64];
 	int out, in;
 	
 	sprintf(name,"TESTRPC%d/INT",(long)tag);
-	myRpc = new DimRpcInfo(name,-1);
+	myRpc = new DimRpcInfo(name, 10, -1);
+//	myRpc = new Rpc(name);
 
 	out = 1;
 	while(1)
 	{
 		sleep(5);
+//		cout << "RPC Sent : " << out << endl;
 		myRpc->setData(out);
 		in = myRpc->getInt();
+dim_lock();
+dim_print_date_time();
 cout << "Instance "<<(long)tag<<" sent "<<out<< " got "<<in <<endl;
+dim_unlock();
 		out++;
+	}
+}
+
+void do_workCB()
+{
+//	DimRpcInfo *myRpc;
+	Rpc *myRpc;
+	char name[64];
+	int out, in;
+	
+	sprintf(name,"TESTRPC/INT");
+	myRpc = new Rpc(name);
+//	myRpc = new Rpc(name);
+
+	out = 1;
+	while(1)
+	{
+		dim_print_date_time();
+		cout << "RPC Sent : " << out << endl;
+		myRpc->setData(out);
+		out++;
+		sleep(5);
 	}
 }
 
@@ -58,10 +86,13 @@ int main()
 	int i;
 
 	dim_init();
+	DimClient::setNoDataCopy();
+
 	for(i = 0; i < 10; i++)
 	{
 		dim_start_thread(do_work,(void *)i);
 	}
+//	do_workCB();
 	while(1)
 		pause();
 	/*

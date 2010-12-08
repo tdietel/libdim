@@ -106,7 +106,7 @@ public :
 	short getShort() { return *(short *)getData(); } ;
 	char *getString()  { return (char *)getData(); } ;
 
-	virtual void infoHandler() {};
+	virtual void infoHandler();
 	void timerHandler();
 	virtual void subscribe(char *name, int time, void *nolink, int nolinksize,
 		DimInfoHandler *handler);
@@ -125,7 +125,7 @@ protected :
 	char *itsFormat;
 	void *itsNolinkBuf;
 	int itsNolinkSize;
-	int secs, milisecs;
+	int secs, millisecs;
 };
 
 class DllExp DimStampedInfo : public DimInfo{
@@ -380,7 +380,7 @@ public :
 	DimRpcInfo(const char *name, int time, void *nolink, int nolinksize) { 
 		subscribe((char *)name, 0, 0, nolink, nolinksize, time); };
 	
-	virtual void rpcInfoHandler() {};
+	virtual void rpcInfoHandler();
 
 	virtual ~DimRpcInfo();
 	int getId() {return itsId;};
@@ -458,6 +458,9 @@ public:
 
 	virtual void infoHandler() {};
 
+	static int dicNoCopy;
+	static void setNoDataCopy();
+	static int getNoDataCopy();
 };
 
 class DllExp DimBrowser
@@ -472,6 +475,10 @@ public :
 	int getServers();
 	int getServerServices(const char *serverName);
 	int getServerClients(const char *serverName);
+	int getServices(const char *serviceName, int timeout);
+	int getServers(int timeout);
+	int getServerServices(const char *serverName, int timeout);
+	int getServerClients(const char *serverName, int timeout);
 	int getNextService(char *&service, char *&format);
 	int getNextServer(char *&server, char *&node);
 	int getNextServer(char *&server, char *&node, int &pid);

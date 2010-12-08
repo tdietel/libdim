@@ -3,10 +3,10 @@ dnl
 dnl
 dnl ------------------------------------------------------------------
 
-AC_INIT([Distributed Information Management System], [18.05], 
+AC_INIT([Distributed Information Management System], [19.12], 
         [Clara.Gaspar@cern.ch], dim)
 
-AC_SUBST([RPM_RELEASE],[3])
+AC_SUBST([RPM_RELEASE],[1])
 AC_SUBST([IPKG_RELEASE],[1])
 
 AC_PREREQ(2.50)
@@ -151,6 +151,13 @@ AS_IF([test "x$with_java" != "x"],
 	    [AC_CHECK_HEADER(jni.h,,AC_MSG_ERROR([Can't find Java Native Interface!]))], )
 
 AM_CONDITIONAL(BUILD_LIBJDIM, test "x$with_java" != "x")
+
+
+dnl __________________________________________________________________
+
+
+AC_CHECK_HEADER(Mrm/MrmAppl.h,,AC_MSG_ERROR([Can't find Motif header Mrm/MrmAppl.h!]))
+AC_CHECK_HEADER(Xm/Xm.h,,AC_MSG_ERROR([Can't find Motif header Xm/Xm.h!]))
 
 
 dnl __________________________________________________________________

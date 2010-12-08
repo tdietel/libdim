@@ -5,6 +5,7 @@
 char *DimClient::dimDnsNode = 0;
 DimErrorHandler *DimClient::itsCltError = 0;
 char *DimClient::serverName = 0;
+int DimClient::dicNoCopy = 0;
 
 extern "C" {
 static void user_routine(void *tagp, void *bufp, int *size)
@@ -16,18 +17,25 @@ static void user_routine(void *tagp, void *bufp, int *size)
 
 //	t = (DimInfo *)id_get_ptr(id, SRC_DIC);
 	t = * (DimInfo **)tagp;
-	if(!t->itsDataSize)
+	if(DimClient::getNoDataCopy() == 0)
 	{
-		t->itsData = new char[*size];
-		t->itsDataSize = *size;
+		if(!t->itsDataSize)
+		{
+			t->itsData = new char[*size];
+			t->itsDataSize = *size;
+		}
+		else if(t->itsDataSize < *size)
+		{
+			delete[] (char *)(t->itsData);
+			t->itsData = new char[*size];
+			t->itsDataSize = *size;
+		}
+		memcpy(t->itsData, buf, *size);
 	}
-	else if(t->itsDataSize < *size)
+	else
 	{
-		delete[] (char *)(t->itsData);
-		t->itsData = new char[*size];
-		t->itsDataSize = *size;
+		t->itsData = buf;
 	}
-	memcpy(t->itsData, buf, *size);
 	t->itsSize = *size;
 	if(t->itsHandler)
 	{
@@ -43,6 +51,27 @@ static void user_routine(void *tagp, void *bufp, int *size)
 		DimCore::inCallback = 0;
 	}
 }
+}
+
+void DimInfo::infoHandler()
+{
+	char *data;
+	if(DimClient::getNoDataCopy() == 1)
+	{
+		data = (char *)itsData;
+		if(!itsDataSize)
+		{
+			itsData = new char[itsSize];
+			itsDataSize = itsSize;
+		}
+		else if(itsDataSize < itsSize)
+		{
+			delete[] (char *)(itsData);
+			itsData = new char[itsSize];
+			itsDataSize = itsSize;
+		}
+		memcpy(itsData, data, itsSize);
+	}
 }
 
 void DimInfo::doIt()
@@ -67,13 +96,13 @@ int DimInfo::getTimestamp()
 {
 	int ret;
 
-	ret = dic_get_timestamp(itsId, &secs, &milisecs);
+	ret = dic_get_timestamp(itsId, &secs, &millisecs);
 	return(secs);
 }
 
 int DimInfo::getTimestampMillisecs()
 {
-	return(milisecs);
+	return(millisecs);
 }
 
 
@@ -152,6 +181,13 @@ void *DimInfo::getData()
 {
 //	if(!this->itsSize)
 //		return itsNolinkBuf;
+/*
+	if(DimClient::getNoDataCopy() == 1)
+	{
+		if(!DimCore::inCallback)
+			return (void *)0;
+	}
+*/
 	return this->itsData;
 }
 
@@ -394,16 +430,19 @@ static void rpc_user_routine(void *tagp, void *bufp, int *sizep)
 		buf = (char *)t->itsNolinkBuf;
 		size = t->itsNolinkSize;
 	}
-	if(!t->itsDataSize)
+	if(DimClient::getNoDataCopy() == 0)
 	{
-		t->itsData = new char[size];
-		t->itsDataSize = size;
-	}
-	else if(t->itsDataSize < size)
-	{
-		delete[] (char *)(t->itsData);
-		t->itsData = new char[size];
-		t->itsDataSize = size;
+		if(!t->itsDataSize)
+		{
+			t->itsData = new char[size];
+			t->itsDataSize = size;
+		}
+		else if(t->itsDataSize < size)
+		{
+			delete[] (char *)(t->itsData);
+			t->itsData = new char[size];
+			t->itsDataSize = size;
+		}
 	}
 	if(!t->itsConnected)
 	{
@@ -412,7 +451,10 @@ static void rpc_user_routine(void *tagp, void *bufp, int *sizep)
 	if(t->itsWaiting)
 	{
 		t->stop();
-		memcpy(t->itsData, buf, size);
+		if(DimClient::getNoDataCopy() == 0)
+			memcpy(t->itsData, buf, size);
+		else
+			t->itsData = buf;
 		t->itsSize = size;
 		t->wakeUp = 1;
 		if(t->itsInit)
@@ -440,20 +482,26 @@ void DimRpcInfo::timerHandler()
 	buf = (char *)itsNolinkBuf;
 	size = itsNolinkSize;
 
-	if(!itsDataSize)
+	if(DimClient::getNoDataCopy() == 0)
 	{
-		itsData = new char[size];
-		itsDataSize = size;
-	}
-	else if(itsDataSize < size)
-	{
-		delete[] (char *)(itsData);
-		itsData = new char[size];
-		itsDataSize = size;
+		if(!itsDataSize)
+		{
+			itsData = new char[size];
+			itsDataSize = size;
+		}
+		else if(itsDataSize < size)
+		{
+			delete[] (char *)(itsData);
+			itsData = new char[size];
+			itsDataSize = size;
+		}
 	}
 	if(itsWaiting)
 	{
-		memcpy(itsData, buf, size);
+		if(DimClient::getNoDataCopy() == 0)
+			memcpy(itsData, buf, size);
+		else
+			itsData = buf;
 		itsSize = size;
 		wakeUp = 1;
 		if(itsInit)
@@ -470,6 +518,27 @@ void DimRpcInfo::timerHandler()
 #ifdef WIN32
 	wake_up();
 #endif
+}
+
+void DimRpcInfo::rpcInfoHandler()
+{
+	char *data;
+	if(DimClient::getNoDataCopy() == 1)
+	{
+		data = (char *)itsData;
+		if(!itsDataSize)
+		{
+			itsData = new char[itsSize];
+			itsDataSize = itsSize;
+		}
+		else if(itsDataSize < itsSize)
+		{
+			delete[] (char *)(itsData);
+			itsData = new char[itsSize];
+			itsDataSize = itsSize;
+		}
+		memcpy(itsData, data, itsSize);
+	}
 }
 
 void DimRpcInfo::subscribe(char *name, void *data, int size,
@@ -526,18 +595,25 @@ void DimRpcInfo::doIt(void *data, int size)
 	int ret;
 
 	wakeUp = 0;
-	if(!itsDataOut)
+	if(DimClient::getNoDataCopy() == 0)
 	{
-		itsDataOut = new char[size];
-		itsDataOutSize = size;
+		if(!itsDataOut)
+		{
+			itsDataOut = new char[size];
+			itsDataOutSize = size;
+		}
+		else if(itsDataOutSize < size)
+		{
+			delete[] (char *)itsDataOut;
+			itsDataOut = new char[size];
+			itsDataOutSize = size;
+		}
+		memcpy(itsDataOut, data, size);
 	}
-	else if(itsDataOutSize < size)
+	else
 	{
-		delete[] (char *)itsDataOut;
-		itsDataOut = new char[size];
-		itsDataOutSize = size;
+		itsDataOut = data;
 	}
-	memcpy(itsDataOut, data, size);
 	while(!itsConnected)
 		dim_wait();
 	itsWaiting = 1;
@@ -564,6 +640,13 @@ void *DimRpcInfo::getData()
 		dim_wait();
 #endif
 	}
+/*
+	if(DimClient::getNoDataCopy() == 1)
+	{
+		if(!DimCore::inCallback)
+			return (void *)0;
+	}
+*/
 	return this->itsData;
 }
 
@@ -610,13 +693,18 @@ DimBrowser::~DimBrowser()
 
 int DimBrowser::getServices(const char * serviceName) 
 {
+	return getServices(serviceName, 0);
+}
+
+int DimBrowser::getServices(const char * serviceName, int timeout) 
+{
 	char *str;
 
 //	DimRpcInfo rpc((char *)"DIS_DNS/SERVICE_INFO",(char *)"\0");
 //	rpc.setData((char *)serviceName);
 //	str = rpc.getString();
 	if(!browserRpc)
-		browserRpc = new DimRpcInfo((char *)"DIS_DNS/SERVICE_INFO",(char *)"\0");
+		browserRpc = new DimRpcInfo((char *)"DIS_DNS/SERVICE_INFO",timeout,(char *)"\0");
 	browserRpc->setData((char *)serviceName);
 	str = browserRpc->getString();	
 	if(itsData[0])
@@ -630,9 +718,14 @@ int DimBrowser::getServices(const char * serviceName)
 
 int DimBrowser::getServers() 
 {
+	return getServers(0);
+}
+
+int DimBrowser::getServers(int timeout) 
+{
 	char *str, *pid_str;
 	int size, totsize;
-	DimCurrentInfo srv((char *)"DIS_DNS/SERVER_LIST",(char *)"\0");
+	DimCurrentInfo srv((char *)"DIS_DNS/SERVER_LIST", timeout, (char *)"\0");
 	str = srv.getString();
 	size = strlen(str)+1;
 	totsize = srv.getSize();
@@ -652,14 +745,19 @@ int DimBrowser::getServers()
 	}
 	return(itsData[1]->getNTokens((char *)"|") +1); 
 }
-	
+
 int DimBrowser::getServerServices(const char *serverName) 
+{
+	return getServerServices(serverName, 0);
+}
+
+int DimBrowser::getServerServices(const char *serverName, int timeout) 
 {
 	char *str;
 	char *name = new char[strlen(serverName) + 20];
 	strcpy(name,(char *)serverName);
 	strcat(name,(char *)"/SERVICE_LIST");
-	DimCurrentInfo srv(name,(char *)"\0");
+	DimCurrentInfo srv(name, timeout, (char *)"\0");
 	delete[] name;
 	str = srv.getString();	
 	if(itsData[2])
@@ -671,13 +769,18 @@ int DimBrowser::getServerServices(const char *serverName)
 	return(itsData[2]->getNTokens((char *)"\n") + 1); 
 }
 
-int DimBrowser::getServerClients(const char *serverName) 
+int DimBrowser::getServerClients(const char *serverName)
+{
+	return getServerClients(serverName, 0);
+}
+
+int DimBrowser::getServerClients(const char *serverName, int timeout) 
 {
 	char *str;
 	char *name = new char[strlen(serverName) + 20];
 	strcpy(name,(char *)serverName);
 	strcat(name,(char *)"/CLIENT_LIST");
-	DimCurrentInfo srv(name,(char *)"\0");
+	DimCurrentInfo srv(name, timeout, (char *)"\0");
 	delete[] name;
 	str = srv.getString();	
 	if(itsData[3])
@@ -973,6 +1076,16 @@ char *DimClient::getDnsNode()
 int DimClient::getDnsPort() 
 {
 	return dic_get_dns_port();
+}
+
+void DimClient::setNoDataCopy()
+{
+	dicNoCopy = 1;
+}
+
+int DimClient::getNoDataCopy()
+{
+	return dicNoCopy;
 }
 
 extern "C" {

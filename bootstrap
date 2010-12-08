@@ -1,6 +1,8 @@
 #!/bin/sh
 
-aclocal \
-&& libtoolize --force \
-&& automake --add-missing \
-&& autoconf
+autoreconf -i
+
+#aclocal \
+#&& libtoolize --force \
+#&& automake --add-missing \
+#&& autoconf

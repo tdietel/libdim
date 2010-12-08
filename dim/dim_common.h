@@ -44,6 +44,8 @@ typedef enum { SRC_NONE, SRC_DIS, SRC_DIC, SRC_DNS, SRC_DNA, SRC_USR }SRC_TYPES;
 
 #ifdef WIN32
 typedef __int64		longlong;
+#elif defined(__linux__)
+typedef long long int longlong;
 #else
 #include <sys/types.h> 
 typedef int64_t	longlong;
@@ -190,6 +192,15 @@ _DIM_PROTOE( int dis_set_dns_port,		(int port) );
 _DIM_PROTOE( int dis_get_dns_port,		() );
 _DIM_PROTOE( void dim_stop,				() );
 _DIM_PROTOE( int dim_stop_thread,		(long tid) );
+_DIM_PROTOE( long dis_add_dns,		(char *node, int port) );
+_DIM_PROTOE( long dic_add_dns,		(char *node, int port) );
+_DIM_PROTOE( int dim_get_env_var,		(char *env_var, char *value, int value_size) );
+_DIM_PROTOE( int dim_set_write_buffer_size,		(int bytes) );
+_DIM_PROTOE( int dim_get_write_buffer_size,		() );
+_DIM_PROTOE( int dim_set_read_buffer_size,		(int bytes) );
+_DIM_PROTOE( int dim_get_read_buffer_size,		() );
+_DIM_PROTOE( void dis_set_debug_on,		() );
+_DIM_PROTOE( void dis_set_debug_off,	() );
 
 #ifdef WIN32
 #define getpid _getpid
@@ -208,6 +219,8 @@ _DIM_PROTOE( void dim_win_usleep,	(unsigned int t) );
 #define DISABLE_AST	DIM_LOCK
 #define ENABLE_AST  DIM_UNLOCK
 #endif
+
+_DIM_PROTOE( void dim_print_date_time_millis,		() );
 
 /* ctime usage */
 #if defined (solaris) || (defined (LYNXOS) && !defined (__Lynx__) )

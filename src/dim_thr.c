@@ -46,6 +46,7 @@ void *dim_tcpip_thread(void *tag)
 	thr_getprio(thr_self(),&prio);
 	thr_setprio(thr_self(),prio+10);
 	*/
+	if(tag){}
 	IO_thread = pthread_self();
 
 	dim_tcpip_init(1);
@@ -79,6 +80,7 @@ void *dim_dtq_thread(void *tag)
 	thr_getprio(thr_self(),&prio);
 	thr_setprio(thr_self(),prio+5);
 	*/
+	if(tag){}
 	ALRM_thread = pthread_self();
 
 	dim_dtq_init(1);
@@ -214,9 +216,7 @@ void dim_stop()
 	DIM_THR_init_done = 0;
 }
 
-long dim_start_thread(thread_ast, tag)
-void *(*thread_ast)(void *);
-long tag;
+long dim_start_thread(void *(*thread_ast)(void *), long tag)
 {
 	pthread_t t_id;
     pthread_attr_t attr;
@@ -235,6 +235,8 @@ int dim_stop_thread(long t_id)
 {
 	int ret;
 	ret = pthread_cancel((pthread_t)t_id);
+	dim_print_date_time();
+	printf("dim_stop_thread: this function is obsolete, it creates memory leaks\n");
 	return ret;
 }
 
@@ -295,7 +297,7 @@ int dim_get_scheduler_class(int *pclass)
 int dim_set_priority(int threadId, int prio)
 {
 #ifdef __linux__
-	pthread_t id;
+	pthread_t id = MAIN_thread;
 	int ret;
 	int pclass;
 	struct sched_param param;
@@ -319,7 +321,7 @@ int dim_set_priority(int threadId, int prio)
 int dim_get_priority(int threadId, int *prio)
 {
 #ifdef __linux__
-	pthread_t id;
+	pthread_t id=MAIN_thread;
 	int ret;
 	int pclass;
 	struct sched_param param;
@@ -374,10 +376,9 @@ void ignore_sigpipe()
   }
 }
 
-void pipe_sig_handler( num )
-int num;
+void pipe_sig_handler( int num )
 {
- 
+	if(num){} 
 /*
 	printf( "*** pipe_sig_handler called ***\n" );
 */  
@@ -524,17 +525,21 @@ DWORD MAIN_thread = 0;
 HANDLE hIO_thread;
 HANDLE hALRM_thread;
 HANDLE hMAIN_thread;
-DllExp HANDLE Global_DIM_event = 0;
+DllExp HANDLE Global_DIM_event_auto = 0;
 DllExp HANDLE Global_DIM_mutex = 0;
+DllExp HANDLE Global_DIM_event_manual = 0;
 void dim_tcpip_stop(), dim_dtq_stop();
 
-long dim_start_thread(thread_ast, tag)
+typedef struct{
+	void (*thread_ast)();
+	long tag;
+	
+}THREAD_PARAMS;
+
 #ifndef STDCALL
-void (*thread_ast)();
-long tag;
+long dim_start_thread(void (*thread_ast)(), long tag)
 #else
-unsigned long (*thread_ast)(void *);
-void *tag;
+long dim_start_thread(unsigned long (*thread_ast)(void *), void *tag)
 #endif
 {
 DWORD threadid = 0;
@@ -566,6 +571,8 @@ int dim_stop_thread(long thread_id)
 	int ret;
 
 	ret = TerminateThread((HANDLE)thread_id, 0);
+	CloseHandle((HANDLE)thread_id);
+	printf("dim_stop_thread: this function is obsolete, it creates memory leaks\n");
 	return ret;
 }
 
@@ -646,12 +653,15 @@ void dim_stop_threads()
 		TerminateThread(hALRM_thread, 0);
 	if(Global_DIM_mutex) 
 		CloseHandle(Global_DIM_mutex);
-	if(Global_DIM_event) 
-		CloseHandle(Global_DIM_event);
+	if(Global_DIM_event_auto) 
+		CloseHandle(Global_DIM_event_auto);
+	if(Global_DIM_event_manual) 
+		CloseHandle(Global_DIM_event_manual);
 	hIO_thread = 0;
 	hALRM_thread = 0;
 	Global_DIM_mutex = 0;
-	Global_DIM_event = 0;
+	Global_DIM_event_auto = 0;
+	Global_DIM_event_manual = 0;
 	dim_tcpip_stop();
 	dim_dtq_stop();
 }
@@ -818,22 +828,34 @@ void dim_unlock()
 
 void dim_pause()
 {
-	if(!Global_DIM_event)
+HANDLE handles[2];
+
+	if(!Global_DIM_event_auto)
 	{ 
-		Global_DIM_event = CreateEvent(NULL,TRUE,FALSE,NULL);
+		Global_DIM_event_auto = CreateEvent(NULL,FALSE,FALSE,NULL);
+		Global_DIM_event_manual = CreateEvent(NULL,TRUE,FALSE,NULL);
 	}
 	else 
 	{
+/*
 		WaitForSingleObject(Global_DIM_event, INFINITE);
+*/
+		handles[0] = Global_DIM_event_auto;
+		handles[1] = Global_DIM_event_manual;
+		WaitForMultipleObjects(2, handles, FALSE, INFINITE);
 	}
 }
 
 void dim_wake_up()
 {
-	if(Global_DIM_event)
+	if(Global_DIM_event_auto)
 	{
-		SetEvent(Global_DIM_event);
-		ResetEvent(Global_DIM_event);
+		SetEvent(Global_DIM_event_auto);
+	}
+	if(Global_DIM_event_manual)
+	{
+		SetEvent(Global_DIM_event_manual);
+		ResetEvent(Global_DIM_event_manual);
 	}
 }
 
