@@ -156,9 +156,9 @@ AM_CONDITIONAL(BUILD_LIBJDIM, test "x$with_java" != "x")
 dnl __________________________________________________________________
 
 
-AC_CHECK_HEADER(Mrm/MrmAppl.h,,AC_MSG_ERROR([Can't find Motif header Mrm/MrmAppl.h!]))
-AC_CHECK_HEADER(Xm/Xm.h,,AC_MSG_ERROR([Can't find Motif header Xm/Xm.h!]))
-
+AS_IF([test "x$enable_utils" = "xyes"],
+	    [AC_CHECK_HEADER(Mrm/MrmAppl.h,,AC_MSG_ERROR([Can't find Motif header Mrm/MrmAppl.h!])),
+	     AC_CHECK_HEADER(Xm/Xm.h,,AC_MSG_ERROR([Can't find Motif header Xm/Xm.h!])) ], )
 
 dnl __________________________________________________________________
 AC_CONFIG_FILES([Makefile])
