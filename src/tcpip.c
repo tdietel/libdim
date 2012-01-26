@@ -33,9 +33,9 @@
 
 #else
 /*
-#define closesock(s) shutdown(s,2);
+#define closesock(s) shutdown(s,2)
 */
-#define closesock close
+#define closesock(s) close(s)
 #define readsock(a,b,c,d) read(a,b,c)
 
 #if defined(__linux__) && !defined (darwin)
@@ -84,25 +84,53 @@ static int	queue_id = 0;
 static struct sockaddr_in DIM_sockname;
 #endif
 
-static int DIM_IO_path[2] = {0,0};
+static int DIM_IO_path[2] = {-1,-1};
 static int DIM_IO_Done = 0;
 static int DIM_IO_valid = 1;
 
-static int Write_timeout = 5;
+static int Keepalive_timeout_set = 0;
+static int Write_timeout = WRITE_TMOUT;
+static int Write_timeout_set = 0;
 static int Write_buffer_size = TCP_SND_BUF_SIZE;
 static int Read_buffer_size = TCP_RCV_BUF_SIZE;
 
 int Tcpip_max_io_data_write = TCP_SND_BUF_SIZE - 16;
 int Tcpip_max_io_data_read = TCP_RCV_BUF_SIZE - 16;
 
+void dim_set_keepalive_timeout(int secs)
+{
+	Keepalive_timeout_set = secs;
+}
+
+int dim_get_keepalive_timeout()
+{
+	int ret;
+	extern int get_keepalive_tmout();
+
+	if(!(ret = Keepalive_timeout_set))
+	{
+		ret = get_keepalive_tmout();
+	}
+	return(ret);
+}
+
 void dim_set_write_timeout(int secs)
 {
-  Write_timeout = secs;
+	Write_timeout = secs;
+	Write_timeout_set = 1;
 }
 
 int dim_get_write_timeout()
 {
-  return(Write_timeout);
+	int ret;
+	extern int get_write_tmout();
+
+	if(!Write_timeout_set)
+	{
+		if((ret = get_write_tmout()))
+			Write_timeout = ret;
+	}
+	return(Write_timeout);
 }
 
 int dim_set_write_buffer_size(int size)
@@ -195,8 +223,12 @@ int dim_tcpip_init(int thr_flag)
 	void dummy_io_sig_handler();
 	void tcpip_pipe_sig_handler();
 #endif
+	extern int get_write_tmout();
 
-	if(init_done) return(1);
+	if(init_done) 
+		return(1);
+
+	dim_get_write_timeout();
 #ifdef WIN32
 	init_sock();
 	Threads_on = 1;
@@ -243,7 +275,7 @@ int dim_tcpip_init(int thr_flag)
 	if(Threads_on)
 	{
 #ifdef WIN32
-		if(!DIM_IO_path[0])
+		if(DIM_IO_path[0] == -1)
 		{
 			if( (DIM_IO_path[0] = socket(AF_INET, SOCK_STREAM, 0)) == -1 ) 
 			{
@@ -258,7 +290,7 @@ int dim_tcpip_init(int thr_flag)
 			ioctl(DIM_IO_path[0], FIONBIO, &flags);
 		}
 #else
-		if(!DIM_IO_path[0])
+		if(DIM_IO_path[0] == -1)
 		{
 			pipe(DIM_IO_path);
 		}
@@ -290,8 +322,9 @@ void dim_tcpip_stop()
 	close(DIM_IO_path[0]);
 	close(DIM_IO_path[1]);
 #endif
-	DIM_IO_path[0] = 0;
-	DIM_IO_path[1] = 0;
+	DIM_IO_path[0] = -1;
+	DIM_IO_path[1] = -1;
+	DIM_IO_Done = 0;
 	init_done = 0;
 }
 
@@ -322,7 +355,7 @@ static int enable_sig(int conn_id)
 		ret = connect(DIM_IO_path[0], (struct sockaddr*)&DIM_sockname, sizeof(DIM_sockname));
 */
 		closesock(DIM_IO_path[0]);
-		DIM_IO_path[0] = 0;
+		DIM_IO_path[0] = -1;
 		if( (DIM_IO_path[0] = socket(AF_INET, SOCK_STREAM, 0)) == -1 ) 
 		{
 			perror("socket");
@@ -335,7 +368,7 @@ static int enable_sig(int conn_id)
 		}
 		DIM_IO_valid = 1;
 #else
-		if(DIM_IO_path[1])
+		if(DIM_IO_path[1] != -1)
 		{
 			if(!DIM_IO_Done)
 			{
@@ -460,7 +493,7 @@ void tcpip_set_keepalive( int channel, int tmout )
    setsockopt(channel, IPPROTO_TCP, TCP_KEEPIDLE, (char*)&val, sizeof(val));
    val = 3;
    setsockopt(channel, IPPROTO_TCP, TCP_KEEPCNT, (char*)&val, sizeof(val));
-   val = 2;
+   val = tmout/3;
    setsockopt(channel, IPPROTO_TCP, TCP_KEEPINTVL, (char*)&val, sizeof(val));
 }
 
@@ -488,14 +521,18 @@ static void tcpip_test_write( int conn_id )
 
 void tcpip_set_test_write(int conn_id, int timeout)
 {
+
 #if defined(__linux__) && !defined (darwin)
 	tcpip_set_keepalive(Net_conns[conn_id].channel, timeout);
 #else
+
 	Net_conns[conn_id].timr_ent = dtq_add_entry( queue_id, timeout, 
 		tcpip_test_write, conn_id );
 	Net_conns[conn_id].timeout = timeout;
 	Net_conns[conn_id].last_used = time(NULL);
+
 #endif
+
 }
 
 void tcpip_rem_test_write(int conn_id)
@@ -988,6 +1025,7 @@ int tcpip_open_client( int conn_id, char *node, char *task, int port )
 	Net_conns[conn_id].last_used = time(NULL);
 	Net_conns[conn_id].reading = -1;
 	Net_conns[conn_id].timr_ent = NULL;
+	Net_conns[conn_id].write_timedout = 0;
 	return(1);
 }
 
@@ -1099,7 +1137,7 @@ printf("Trying port %d, ret = %d\n", *port, ret);
 		}
 	}
 
-	if( (ret = listen(path, 16)) == -1 )
+	if( (ret = listen(path, SOMAXCONN)) == -1 )
 	{
 		closesock(path);
 		return(0);
@@ -1112,6 +1150,7 @@ printf("Trying port %d, ret = %d\n", *port, ret);
 	Net_conns[conn_id].last_used = time(NULL);
 	Net_conns[conn_id].reading = -1;
 	Net_conns[conn_id].timr_ent = NULL;
+	Net_conns[conn_id].write_timedout = 0;
 	return(1);
 }
 
@@ -1186,6 +1225,7 @@ int tcpip_open_connection( int conn_id, int path )
 	Net_conns[conn_id].port = 0;
 	Net_conns[conn_id].reading = -1;
 	Net_conns[conn_id].timr_ent = NULL;
+	Net_conns[conn_id].write_timedout = 0;
 	return(1);
 }
 
@@ -1277,7 +1317,13 @@ int tcpip_write_nowait( int conn_id, char *buffer, int size )
 			}
 		}
 		else
+		{
 			return(0);
+		}
+	}
+	if(wrote == -1)
+	{
+		Net_conns[conn_id].write_timedout = 1;
 	}
 	return(wrote);
 }
@@ -1298,7 +1344,16 @@ int tcpip_close( int conn_id )
 	Net_conns[conn_id].node[0] = 0;
 	Net_conns[conn_id].task[0] = 0;
 	if(channel)
+	{
+		if(Net_conns[conn_id].write_timedout)
+		{
+			Net_conns[conn_id].write_timedout = 0;
+#if defined(__linux__) && !defined (darwin)
+			shutdown(channel, 2);
+#endif
+		}
 		closesock(channel);
+	}
 	return(1);
 }
 

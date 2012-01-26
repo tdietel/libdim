@@ -516,11 +516,19 @@ void service_tmout( int serv_id )
 	int once_only, size = 0;
 	register DIC_SERVICE *servp;
 	
+/*
+dim_print_date_time();
+printf("In service tmout\n");
+*/
 	servp=(DIC_SERVICE *)id_get_ptr(serv_id, SRC_DIC);
 	if(!servp)
 		return;
 	if(servp->tmout_done)
 		return;
+/*
+dim_print_date_time();
+printf("In service tmout %s\n", servp->serv_name);
+*/
 	servp->tmout_done = 1;
 	Curr_conn_id = servp->conn_id;
 /*
@@ -943,6 +951,8 @@ int dic_get_timestamp( unsigned serv_id, int *secs, int *milisecs )
 	register DIC_SERVICE *servp;
 
 	DISABLE_AST
+	*secs = 0;
+	*milisecs = 0;
 	if( serv_id == 0 )
 	{
 		if(Current_server)
@@ -969,8 +979,10 @@ int dic_get_timestamp( unsigned serv_id, int *secs, int *milisecs )
 	}
 	else
 	{
+/*
 		*secs = 0;
 		*milisecs = 0;
+*/
 		return(0);
 	}
 }
@@ -1418,7 +1430,7 @@ static int handle_dns_info( DNS_DIC_PACKET *packet )
 			}
 #endif
 */
-			dna_set_test_write(conn_id, TEST_TIME_OSK);
+			dna_set_test_write(conn_id, dim_get_keepalive_timeout());
 			dic_connp = &Dic_conns[conn_id];
 			strncpy( dic_connp->node_name, node_name,
 				 MAX_NODE_NAME); 
@@ -1684,6 +1696,10 @@ static void get_format_data(int format, FORMAT_STR *format_data, char *def)
 					break;
 				case 'c':
 				case 'C':
+				case 'b':
+				case 'B':
+				case 'v':
+				case 'V':
 					formatp->par_bytes = SIZEOF_CHAR;
 					formatp->flags |= NOSWAP;
 					break;

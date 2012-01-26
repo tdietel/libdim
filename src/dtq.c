@@ -191,7 +191,6 @@ void dim_dtq_stop()
 {
 /*
 	int i;
-
 	for(i = 0; i < MAX_TIMER_QUEUES + 2; i++)
 	{
 		if( timer_queues[i].queue_head != NULL)
@@ -202,6 +201,13 @@ void dim_dtq_stop()
 		}
 	}
 */
+	scan_it();
+	if( timer_queues[WRITE_QUEUE].queue_head != NULL)
+	{
+		dtq_delete(WRITE_QUEUE);
+		free((TIMR_ENT *)timer_queues[WRITE_QUEUE].queue_head);
+		timer_queues[WRITE_QUEUE].queue_head = 0;
+	}
 	sigvec_done = 0;
 }
 
@@ -652,6 +658,11 @@ static int scan_it()
 
 	DISABLE_AST
 	queue_head = timer_queues[WRITE_QUEUE].queue_head;
+	if(!queue_head)
+	{
+		ENABLE_AST
+		return(0);
+	}
 	auxp = queue_head;
 	while( (auxp = (TIMR_ENT *)dll_get_next((DLL *)queue_head,(DLL *)auxp)) )
 	{	

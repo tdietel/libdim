@@ -66,6 +66,7 @@ public:
 	long getDnsId();
 	void setName(const char *name);
 	char *getName();
+	void clearName();
 	void autoStartOn();
 	void autoStartOff();
 	int isAutoStart();
@@ -134,6 +135,7 @@ public:
 
 	virtual void serviceHandler() {};
 	virtual void commandHandler() {};
+	static int inCallback();
 };
 
 class DllExp DimService : public DimServiceHandler {

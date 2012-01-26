@@ -132,6 +132,8 @@ typedef struct exit_ent {
 	struct exit_ent *next;
 	int conn_id;
 	int exit_id;
+	char node[MAX_NODE_NAME];
+	char task[MAX_TASK_NAME];
 } EXIT_H;
 
 static EXIT_H *Exit_h_head = (EXIT_H *)0;
@@ -145,6 +147,8 @@ static unsigned int Dis_service_id, Dis_client_id;
 static int Updating_service_list = 0;
 */
 static int Last_client;
+static int Last_n_clients;
+
 
 #ifdef DEBUG
 static int Debug_on = 1;
@@ -239,6 +243,11 @@ static unsigned do_dis_add_service_dns( char *name, char *type, void *address, i
 	dis_init();
 	{
 	DISABLE_AST
+	if(Serving == -1)
+	{
+		ENABLE_AST
+		return((unsigned) 0);
+	}
 	if(!check_service_name(name))
 	{
 		strcpy(str,"Service name too long: ");
@@ -412,6 +421,11 @@ static unsigned do_dis_add_cmnd_dns( char *name, char *type, void (*user_routine
 	dis_init();
 	{
 	DISABLE_AST
+	if(Serving == -1)
+	{
+		ENABLE_AST
+		return((unsigned) 0);
+	}
 	if(!check_service_name(name))
 	{
 		strcpy(str,"Command name too long: ");
@@ -579,6 +593,10 @@ static int get_format_data(FORMAT_STR *format_data, char *def)
 					break;
 				case 'c':
 				case 'C':
+				case 'b':
+				case 'B':
+				case 'v':
+				case 'V':
 					format_data->par_bytes = SIZEOF_CHAR;
 					format_data->flags |= NOSWAP;
 					break;
@@ -646,6 +664,8 @@ void recv_dns_dis_rout( int conn_id, DNS_DIS_PACKET *packet, int size, int statu
 
 		if(dnsp->dns_dis_conn_id > 0)
 			dna_close(dnsp->dns_dis_conn_id);
+		if(Serving == -1)
+			return;
 		if(dnsp->serving)
 		{
 			dnsp->dns_dis_conn_id = open_dns(dnsp->dnsid, recv_dns_dis_rout, error_handler,
@@ -689,9 +709,12 @@ void recv_dns_dis_rout( int conn_id, DNS_DIS_PACKET *packet, int size, int statu
 			/*
 			exit(2);
 			*/
+			Serving = -1;
 			error_handler(0, DIM_FATAL, DIMDNSDUPLC, str);
+			/*
 			do_dis_stop_serving_dns(dnsp);
 			dis_stop_serving();
+			*/
 /*
 			exit_tag = 0;
 			exit_code = 2;
@@ -705,9 +728,12 @@ void recv_dns_dis_rout( int conn_id, DNS_DIS_PACKET *packet, int size, int statu
 /*
 			exit(2);
 */
+			Serving = -1;
 			error_handler(0, DIM_FATAL, DIMDNSREFUS, str);
+			/*
 			do_dis_stop_serving_dns(dnsp);
 			dis_stop_serving();
+			*/
 /*
 			exit_tag = 0;
 			exit_code = 2;
@@ -718,6 +744,9 @@ void recv_dns_dis_rout( int conn_id, DNS_DIS_PACKET *packet, int size, int statu
 		case DNS_DIS_EXIT :
 			sprintf(str, 
 				"%s: DNS requests Exit",dnsp->task_name);
+/*
+			Serving = -1;
+*/
 			error_handler(0, DIM_FATAL, DIMDNSEXIT, str);
 			break;
 		}
@@ -746,6 +775,13 @@ int send_dns_update_packet(DIS_DNS_CONN *dnsp)
   strcpy( serv_regp->service_name, "DUMMY_UPDATE_PACKET" );
   if(dnsp->dns_dis_conn_id > 0)
   {
+if(Debug_on)
+{
+dim_print_date_time();
+ printf("Sending UpdatePacket to dns %d as %s@%s, %d services\n",
+	dnsp->dns_dis_conn_id,
+	(&(dnsp->dis_dns_packet))->task_name, (&(dnsp->dis_dns_packet))->node_name, n_services);
+}
       if( !dna_write(dnsp->dns_dis_conn_id, &(dnsp->dis_dns_packet),
 		     DIS_DNS_HEADER + n_services * sizeof(SERVICE_REG)))
 	  {
@@ -787,6 +823,13 @@ void register_services(DIS_DNS_CONN *dnsp, int flag, int dns_flag)
 		dis_dns_p->protocol = htovl(Protocol);
 		dis_dns_p->src_type = htovl(SRC_DIS);
 		dis_dns_p->format = htovl(MY_FORMAT);
+if(Debug_on)
+{
+dim_print_date_time();
+ printf("Registering as %d %s@%s\n",
+	dis_dns_p->pid, dis_dns_p->task_name, dis_dns_p->node_name);
+}
+	
 	}
 
 	dis_dns_p->port = htovl(Port_number);
@@ -799,6 +842,13 @@ void register_services(DIS_DNS_CONN *dnsp, int flag, int dns_flag)
 			(n_services*sizeof(SERVICE_REG)));
 		if(dnsp->dns_dis_conn_id > 0)
 		{
+if(Debug_on)
+{
+dim_print_date_time();
+ printf("Sending NONE to dns %d as %s@%s, %d services\n",
+	dnsp->dns_dis_conn_id,
+	(&(dnsp->dis_dns_packet))->task_name, (&(dnsp->dis_dns_packet))->node_name, n_services);
+}
 			if(!dna_write(dnsp->dns_dis_conn_id, &(dnsp->dis_dns_packet), 
 				DIS_DNS_HEADER + n_services*sizeof(SERVICE_REG)))
 			{
@@ -835,6 +885,12 @@ void register_services(DIS_DNS_CONN *dnsp, int flag, int dns_flag)
 		if(servp->dnsp != dnsp)
 			continue;
 
+if(Debug_on)
+{
+dim_print_date_time();
+ printf("Registering %s\n",
+	servp->name);
+}
 		strcpy( serv_regp->service_name, servp->name );
 		strcpy( serv_regp->service_def, servp->def );
 		if(servp->type == COMMAND)
@@ -852,6 +908,13 @@ void register_services(DIS_DNS_CONN *dnsp, int flag, int dns_flag)
 				n_services * sizeof(SERVICE_REG));
 			if(dnsp->dns_dis_conn_id > 0)
 			{
+if(Debug_on)
+{
+dim_print_date_time();
+ printf("Sending MAX_SERVICE_UNIT to dns %d as %s@%s, %d services\n",
+	dnsp->dns_dis_conn_id,
+	(&(dnsp->dis_dns_packet))->task_name, (&(dnsp->dis_dns_packet))->node_name, n_services);
+}
 				if( !dna_write(dnsp->dns_dis_conn_id,
 					   &(dnsp->dis_dns_packet), 
 					   DIS_DNS_HEADER + n_services *
@@ -873,6 +936,13 @@ void register_services(DIS_DNS_CONN *dnsp, int flag, int dns_flag)
 					n_services * sizeof(SERVICE_REG));
 		if(dnsp->dns_dis_conn_id > 0)
 		{
+if(Debug_on)
+{
+dim_print_date_time();
+ printf("Sending to dns %d as %s@%s, %d services\n",
+	dnsp->dns_dis_conn_id,
+	(&(dnsp->dis_dns_packet))->task_name, (&(dnsp->dis_dns_packet))->node_name, n_services);
+}
 			if( !dna_write(dnsp->dns_dis_conn_id, &(dnsp->dis_dns_packet),
 				DIS_DNS_HEADER + n_services * sizeof(SERVICE_REG)))
 			{
@@ -926,6 +996,13 @@ void unregister_service(DIS_DNS_CONN *dnsp, SERVICE *servp)
 		dis_dns_p->size = htovl(DIS_DNS_HEADER +
 				n_services * sizeof(SERVICE_REG));
 
+if(Debug_on)
+{
+dim_print_date_time();
+ printf("Sending UNREGISTER to dns %d as %s@%s, %d services\n",
+	dnsp->dns_dis_conn_id,
+	(&(dnsp->dis_dns_packet))->task_name, (&(dnsp->dis_dns_packet))->node_name, n_services);
+}
 		if( !dna_write(dnsp->dns_dis_conn_id, &(dnsp->dis_dns_packet), 
 			DIS_DNS_HEADER + n_services * sizeof(SERVICE_REG)) )
 		{
@@ -939,7 +1016,8 @@ void unregister_service(DIS_DNS_CONN *dnsp, SERVICE *servp)
 void do_update_service_list(DIS_DNS_CONN *dnsp)
 {
 	dnsp->updating_service_list = 0;
-	dis_update_service(dnsp->dis_service_id);
+	if(dnsp->dis_service_id)
+		dis_update_service(dnsp->dis_service_id);
 }
 
 /* start serving client requests
@@ -1012,6 +1090,11 @@ int dis_start_serving_dns(long dnsid, char *task/*, int *idlist*/)
 	dis_init();
 	{
 	DISABLE_AST
+	if(Serving == -1)
+	{
+		ENABLE_AST
+		return(0);
+	}
 	  /*
 #ifdef VxWorks
 	taskDeleteHookAdd(remove_all_services);
@@ -1039,6 +1122,11 @@ int dis_start_serving_dns(long dnsid, char *task/*, int *idlist*/)
 		strncpy( task_name_aux, task, MAX_TASK_NAME );
 		task_name_aux[MAX_TASK_NAME-1] = '\0';
 		Port_number = SEEK_PORT;
+if(Debug_on)
+{
+dim_print_date_time();
+ printf("Opening Server Connection %s\n",task_name_aux);
+}
 		if( !(Dis_conn_id = dna_open_server( task_name_aux, dis_insert_request, 
 			&Protocol, &Port_number, error_handler) ))
 		{
@@ -1068,6 +1156,11 @@ int dis_start_serving_dns(long dnsid, char *task/*, int *idlist*/)
 		more_ids[4] = do_dis_add_cmnd_dns( str4, "L:1", exit_handler, 0, dnsid );
 		more_ids[5] = 0;
 		strcpy( dnsp->task_name, task );
+if(Debug_on)
+{
+dim_print_date_time();
+ printf("start serving %s\n",task);
+}
 	}
 /*
 	if(idlist)
@@ -1146,7 +1239,7 @@ static void dis_insert_request(int conn_id, DIC_PACKET *dic_packet, int size, in
 {
 	register SERVICE *servp;
 	register REQUEST *newp, *reqp;
-	CLIENT *clip;
+	CLIENT *clip, *create_client();
 	REQUEST_PTR *reqpp;
 	int type, new_client = 0, found = 0;
 	int find_release_request();
@@ -1163,16 +1256,35 @@ static void dis_insert_request(int conn_id, DIC_PACKET *dic_packet, int size, in
 	{
 		if(status == -1) /* release all requests from conn_id */
 		{
+if(Debug_on)
+{
+dim_print_date_time();
+printf("Received Disconnection %d, from %s@%s\n",
+	   conn_id, 
+	   Net_conns[conn_id].task, Net_conns[conn_id].node);
+}
 			release_conn(conn_id, 0, 0);
 		}
+		else
+		{
+if(Debug_on)
+{
+dim_print_date_time();
+printf("Received Connection %d, from %s@%s\n",
+	   conn_id, 
+	   Net_conns[conn_id].task, Net_conns[conn_id].node);
+}
+		}  
 	} 
 	else 
 	{
-		if(!(servp = find_service(dic_packet->service_name)))
-		{
-			release_conn(conn_id, 0, 0);
-			return;
-		}
+if(Debug_on)
+{
+dim_print_date_time();
+printf("Received Request for %s, from %d  %s@%s\n",
+	   dic_packet->service_name, conn_id, 
+	   Net_conns[conn_id].task, Net_conns[conn_id].node);
+}
 		dic_packet->type = vtohl(dic_packet->type);
 		type = dic_packet->type & 0xFFF;
 		/*
@@ -1187,6 +1299,11 @@ static void dis_insert_request(int conn_id, DIC_PACKET *dic_packet, int size, in
 		if(type == DIM_DELETE) 
 		{
 			find_release_request(conn_id, vtohl(dic_packet->service_id));
+			return;
+		}
+		if(!(servp = find_service(dic_packet->service_name)))
+		{
+			release_conn(conn_id, 0, 0);
 			return;
 		}
 		newp = (REQUEST *)/*my_*/malloc(sizeof(REQUEST));
@@ -1207,6 +1324,7 @@ static void dis_insert_request(int conn_id, DIC_PACKET *dic_packet, int size, in
 			execute_service(newp->req_id);
 			id_free(newp->req_id, SRC_DIS);
 			free(newp);
+			clip = create_client(conn_id, servp, &new_client);
 			return;
 		}
 		if(type == COMMAND) 
@@ -1228,19 +1346,11 @@ static void dis_insert_request(int conn_id, DIC_PACKET *dic_packet, int size, in
 			}
 			if(!found)
 				dll_insert_queue( (DLL *) servp->request_head, (DLL *) newp );
+			clip = create_client(conn_id, servp, &new_client);
 			return;
 		}
 		dll_insert_queue( (DLL *) servp->request_head, (DLL *) newp );
-		if(!(clip = find_client(conn_id)))
-		{
-			clip = (CLIENT *)malloc(sizeof(CLIENT));
-			clip->conn_id = conn_id;
-			clip->dnsp = servp->dnsp;
-			clip->requestp_head = (REQUEST_PTR *)malloc(sizeof(REQUEST_PTR));
-			dll_init( (DLL *) clip->requestp_head );
-			dll_insert_queue( (DLL *) Client_head, (DLL *) clip );
-			new_client = 1;
-		}
+		clip = create_client(conn_id, servp, &new_client);
 		reqpp = (REQUEST_PTR *)malloc(sizeof(REQUEST_PTR));
 		reqpp->reqp = newp;
 		dll_insert_queue( (DLL *) clip->requestp_head, (DLL *) reqpp );
@@ -1308,6 +1418,10 @@ int execute_service( int req_id )
 	}
 	else if( servp->user_routine != 0 ) 
 	{
+		if(reqp->first_time)
+		{
+			Last_n_clients = dis_get_n_clients(servp->id);
+		}
 		(servp->user_routine)( &servp->tag, &buffp, &size,
 					&reqp->first_time );
 		reqp->first_time = 0;
@@ -1378,7 +1492,15 @@ int execute_service( int req_id )
 	Dis_packet->size = htovl(header_size + size);
 	if( !dna_write_nowait(reqp->conn_id, Dis_packet, header_size + size) ) 
 	{
-		reqp->to_delete = 1;
+		if(reqp->delay_delete > 1)
+		{
+			reqp->to_delete = 1;
+		}
+		else
+		{
+			reqp->delay_delete = 0;
+			release_conn(reqp->conn_id, 1, 0);
+		}
 	}
 /*
 	else
@@ -1403,6 +1525,8 @@ void remove_service( int req_id )
 	int service_id;
 
 	reqp = (REQUEST *)id_get_ptr(req_id, SRC_DIS);
+	if(!reqp)
+		return;
 	servp = reqp->service_ptr;
 	if( !packet_size ) {
 		dis_packet = (DIS_PACKET *)malloc(DIS_HEADER);
@@ -1552,8 +1676,14 @@ int do_update_service(unsigned service_id, int *client_ids)
 	int to_delete = 0, more, conn_id;
 	char str[128];
 	int release_request();
+	int n_clients = 0;
 
 	DISABLE_AST
+	if(Serving == -1)
+	{
+		ENABLE_AST
+		return(found);
+	}
 	if(!service_id)
 	{
 		sprintf(str, "Update Service - Invalid service id");
@@ -1579,17 +1709,21 @@ int do_update_service(unsigned service_id, int *client_ids)
 	{
 if(Debug_on)
 {
-dim_print_date_time_millis();
-printf("Updating %s (id = %d, ptr = %08X) for %s@%s (req_id = %d, req_ptr = %08X)\n",
-	   servp->name, (int)service_id, (unsigned)servp, 
-	   Net_conns[reqp->conn_id].task, Net_conns[reqp->conn_id].node, reqp->req_id, (unsigned)reqp);
+dim_print_date_time();
+printf("Updating %s (id = %d, ptr = %08lX) for %s@%s (req_id = %d, req_ptr = %08lX)\n",
+	   servp->name, (int)service_id, (unsigned long)servp, 
+	   Net_conns[reqp->conn_id].task, Net_conns[reqp->conn_id].node, reqp->req_id, (unsigned long)reqp);
 }
 		if(check_client(reqp, client_ids))
+		{
 			reqp->delay_delete = 1;
+			n_clients++;
+		}
 	}
 	ENABLE_AST
 	{
 	DISABLE_AST
+	Last_n_clients = n_clients;
 	reqp = servp->request_head;
 	while( (reqp = (REQUEST *) dll_get_next((DLL *)servp->request_head,
 		(DLL *) reqp)) ) 
@@ -1600,7 +1734,9 @@ printf("Updating %s (id = %d, ptr = %08X) for %s@%s (req_id = %d, req_ptr = %08X
 		{
 			if( (reqp->type & 0xFFF) != TIMED_ONLY ) 
 			{
-//				DISABLE_AST
+/*
+				DISABLE_AST
+*/
 				execute_service(reqp->req_id);
 				found++;
 				ENABLE_AST
@@ -1831,6 +1967,8 @@ int dis_get_timestamp( unsigned serv_id, int *secs, int *millisecs )
 	char str[128];
 
 	DISABLE_AST
+	*secs = 0;
+	*millisecs = 0;
 	if(!serv_id)
 	{
 		sprintf(str,"Get Timestamp - Invalid service id");
@@ -1854,11 +1992,13 @@ int dis_get_timestamp( unsigned serv_id, int *secs, int *millisecs )
 		*secs = servp->user_secs;
 		*millisecs = servp->user_millisecs;
 	}
+/*
 	else
 	{
 		*secs = 0;
 		*millisecs = 0;
 	}
+*/
 	ENABLE_AST
 	return(1);
 }
@@ -1880,6 +2020,11 @@ void dis_send_service(unsigned service_id, int *buffer, int size)
 		return;
 	}
 	servp = (SERVICE *)id_get_ptr(service_id, SRC_DIS);
+	if(!servp)
+	{
+		ENABLE_AST
+		return;
+	}
 	if(!packet_size)
 	{
 		dis_packet = (DIS_PACKET *)malloc(DIS_HEADER+size);
@@ -1945,6 +2090,12 @@ int dis_remove_service(unsigned service_id)
 		ENABLE_AST
 		return(found);
 	}
+if(Debug_on)
+{
+dim_print_date_time();
+ printf("Removing service %s, delay_delete = %d\n",
+	servp->name, servp->delay_delete);
+}
 	if(servp->delay_delete)
 	{
 		servp->to_delete = 1;
@@ -2010,6 +2161,8 @@ register SERVICE *servp, *prevp;
 void dim_stop_threads(void);
 int dis_no_dns();
 int hash_index, old_index;
+extern int close_dns(long, int);
+CLIENT *clip, *cprevp;
 
 	dnsp->serving = 0;
 	dis_init();
@@ -2045,9 +2198,13 @@ int hash_index, old_index;
 	{
 		if(servp->dnsp == dnsp)
 		{
+			ENABLE_AST
 			dis_remove_service(servp->id);
+			{
+			DISABLE_AST
 			if(old_index != hash_index)
 				prevp = 0;
+			}
 		}
 		else
 		{
@@ -2057,7 +2214,46 @@ int hash_index, old_index;
 	}
 	ENABLE_AST
 	}
+	{
+	DISABLE_AST
+	cprevp = Client_head;
+	while( (clip = (CLIENT *)dll_get_next( (DLL *) Client_head, 
+			(DLL*) cprevp)) )
+	{
+		if(clip->dnsp != dnsp)
+		{
+			cprevp = clip;
+			continue;
+		}
+		if( dll_empty((DLL *)clip->requestp_head) ) 
+		{
+if(Debug_on)
+{
+dim_print_date_time();
+printf("Releasing conn %d, to %s@%s\n",
+	   clip->conn_id, 
+	   Net_conns[clip->conn_id].task, Net_conns[clip->conn_id].node);
+}
+			release_conn( clip->conn_id, 0, 0);
+		}
+		else
+		{
+			cprevp = clip;
+		}
+	}
+	ENABLE_AST
+	}
+if(Debug_on)
+{
+dim_print_date_time();
+printf("Cleaning dnsp variables\n");
+}
+
 	dnsp->dis_first_time = 1;
+	dnsp->dis_n_services = 0;
+	dnsp->dis_dns_packet.size = 0;
+	dnsp->dis_dns_packet.src_type = 0;
+	close_dns(dnsp->dnsid, SRC_DIS);
 /*
 	if(dnsp != Default_DNS)
 	{
@@ -2086,6 +2282,9 @@ register SERVICE *servp, *prevp;
 void dim_stop_threads(void);
 int hash_index;
 
+/*
+	if(Serving != -1)
+*/
 	Serving = 0;
 	dis_init();
 	if(Dis_conn_id)
@@ -2101,13 +2300,17 @@ int hash_index;
 	}
 */
 	{
-		DISABLE_AST
+	DISABLE_AST
 	prevp = 0;
 	hash_index = -1;
 	while( (servp = dis_hash_service_get_next(&hash_index, prevp, 0)) )
 	{
+		ENABLE_AST
 		dis_remove_service(servp->id);
+		{
+		DISABLE_AST
 		prevp = 0;
+		}
 	}
 	ENABLE_AST
 	}
@@ -2128,6 +2331,9 @@ int hash_index;
 */
 	dtq_delete(Dis_timer_q);
 	Dis_timer_q = 0;
+/*
+	if(Serving != -1)
+*/
 	dim_stop_threads();
 }
 
@@ -2135,6 +2341,27 @@ int hash_index;
 SERVICE *find_service(char *name)
 {
 	return(dis_hash_service_exists(name));
+}
+
+CLIENT *create_client(int conn_id, SERVICE *servp, int *new_client)
+{
+	CLIENT *clip;
+
+	*new_client = 0;
+	if(!(clip = find_client(conn_id)))
+	{
+		/*
+		dna_set_test_write(conn_id, 15);
+		*/
+		clip = (CLIENT *)malloc(sizeof(CLIENT));
+		clip->conn_id = conn_id;
+		clip->dnsp = servp->dnsp;
+		clip->requestp_head = (REQUEST_PTR *)malloc(sizeof(REQUEST_PTR));
+		dll_init( (DLL *) clip->requestp_head );
+		dll_insert_queue( (DLL *) Client_head, (DLL *) clip );
+		*new_client = 1;
+	}
+	return clip;
 }
 
 CLIENT *find_client(int conn_id)
@@ -2344,10 +2571,11 @@ int release_request(REQUEST *reqp, REQUEST_PTR *reqpp, int remove)
 		dtq_rem_entry(Dis_timer_q, reqp->timr_ent);
 	id_free(reqp->req_id, SRC_DIS);
 	free(reqp);
-	free(reqpp);
+	if(reqpp)
+		free(reqpp);
 /* Would do it too early, the client will disconnect anyway
 */
-	if((remove) && (!Serving))
+	if((remove) && (Serving == 0))
 	{
 		clip = find_client(conn_id);
 		if(clip)
@@ -2670,7 +2898,13 @@ void service_info(long *tag, int **bufp, int *size, int *first_time)
 				continue;
 			if(servp->registered)
 			{
+/*
 				servp->registered = 2;
+*/
+				if((dnsp->updating_service_list) && (Last_n_clients > 1) && 
+					(servp->registered == 1))
+					continue;
+				servp->registered = Last_n_clients+1;
 				append_service(buff_ptr, servp);
 				buff_ptr += strlen(buff_ptr);
 			}
@@ -2682,7 +2916,17 @@ void service_info(long *tag, int **bufp, int *size, int *first_time)
 		{
 			if(servp->dnsp != dnsp)
 				continue;
+/*
 			if(servp->registered == 1)
+*/
+			if(servp->registered == 0)
+			{
+				strcat(buff_ptr, "-");
+				buff_ptr += strlen(buff_ptr);
+				append_service(buff_ptr, servp);
+				buff_ptr += strlen(buff_ptr);
+			}
+			else if(servp->registered < (Last_n_clients+1))
 			{
 				if(!done)
 				{
@@ -2692,99 +2936,144 @@ void service_info(long *tag, int **bufp, int *size, int *first_time)
 				}
 				append_service(buff_ptr, servp);
 				buff_ptr += strlen(buff_ptr);
+/*
 				servp->registered = 2;
-			}
-			else if(servp->registered == 0)
-			{
-				strcat(buff_ptr, "-");
-				buff_ptr += strlen(buff_ptr);
-				append_service(buff_ptr, servp);
-				buff_ptr += strlen(buff_ptr);
+*/
+				servp->registered++;
 			}
 		}
 	}
 	*bufp = (int *)service_info_buffer;
 	*size = buff_ptr - service_info_buffer+1;
+	if(*size == 1)
+		*size = -1;
 	ENABLE_AST
 }
-		
-void add_exit_handler(int *tag, int *bufp, int *size)
+	
+static void add_exit_handler_item(int conn_id, int tag)
 {
 	EXIT_H *newp;
+
+	DISABLE_AST
+	if(!Exit_h_head) 
+	{
+		Exit_h_head = (EXIT_H *)malloc(sizeof(EXIT_H));
+		sll_init( (SLL *) Exit_h_head );
+	}
+	if( (newp = (EXIT_H *)sll_search((SLL *) Exit_h_head, 
+		(char *)&conn_id, 4)) )
+	{
+		newp->conn_id = conn_id;
+		newp->exit_id = tag;
+		strcpy(newp->node, Net_conns[conn_id].node);
+		strcpy(newp->task, Net_conns[conn_id].task);
+	}
+	else
+	{
+		newp = (EXIT_H *)malloc(sizeof(EXIT_H));
+		newp->conn_id = conn_id;
+		newp->exit_id = tag;
+		strcpy(newp->node, Net_conns[conn_id].node);
+		strcpy(newp->task, Net_conns[conn_id].task);
+		sll_insert_queue( (SLL *) Exit_h_head, (SLL *) newp );
+	}
+	ENABLE_AST
+}
+
+static void rem_exit_handler_item(EXIT_H *exitp)
+{
+
+	DISABLE_AST
+	if(!Exit_h_head) 
+	{
+		ENABLE_AST
+		return;
+	}
+	sll_remove( (SLL *) Exit_h_head, (SLL *) exitp );
+	free(exitp);
+	ENABLE_AST
+}
+
+static EXIT_H *find_exit_handler_item(int conn_id)
+{
+	EXIT_H *exitp;
+
+	DISABLE_AST;
+	if(!Exit_h_head)
+	{
+		ENABLE_AST;
+		return((EXIT_H *)0);
+	}
+	if( (exitp = (EXIT_H *) sll_search((SLL *) Exit_h_head, (char *) &conn_id, 4)) )
+	{
+		ENABLE_AST;
+		return(exitp);
+	}
+	ENABLE_AST;
+	return((EXIT_H *)0);
+}
+
+static int check_exit_handler_item(EXIT_H *exitp, int conn_id)
+{
+	if( (!strcmp(exitp->node, Net_conns[conn_id].node)) &&
+		(!strcmp(exitp->task, Net_conns[conn_id].task)))
+	{
+		return exitp->exit_id;
+	}
+	return 0;
+}
+
+void add_exit_handler(int *tag, int *bufp, int *size)
+{
+	EXIT_H *exitp;
 
 	if(size){}
 	if(tag){}
 	if(*bufp)
 	{
-		if(!Exit_h_head) 
-		{
-			Exit_h_head = (EXIT_H *)malloc(sizeof(EXIT_H));
-			sll_init( (SLL *) Exit_h_head );
-		}
-		newp = (EXIT_H *)malloc(sizeof(EXIT_H));
-		newp->conn_id = Curr_conn_id;
-		newp->exit_id = *bufp;
-		sll_insert_queue( (SLL *) Exit_h_head, (SLL *) newp );
+		add_exit_handler_item(Curr_conn_id, *bufp);
 	}
 	else
 	{
-		if(!Exit_h_head) 
-			return;
-		if((newp = (EXIT_H *)sll_search((SLL *) Exit_h_head, 
-			(char *)&Curr_conn_id, 4)) )
-		{
-			sll_remove( (SLL *) Exit_h_head, (SLL *) newp );
-		}
+		if((exitp = find_exit_handler_item(Curr_conn_id)))
+			rem_exit_handler_item(exitp);
 	}
 }
 
 void dis_set_client_exit_handler(int conn_id, int tag)
 {
-	EXIT_H *newp;
+	EXIT_H *exitp;
 
-	DISABLE_AST
 	if(tag)
 	{
-		if(!Exit_h_head) 
-		{
-			Exit_h_head = (EXIT_H *)malloc(sizeof(EXIT_H));
-			sll_init( (SLL *) Exit_h_head );
-		}
-		if( (newp = (EXIT_H *)sll_search((SLL *) Exit_h_head, 
-			(char *)&conn_id, 4)) )
-		{
-			newp->conn_id = conn_id;
-			newp->exit_id = tag;
-		}
-		else
-		{
-			newp = (EXIT_H *)malloc(sizeof(EXIT_H));
-			newp->conn_id = conn_id;
-			newp->exit_id = tag;
-			sll_insert_queue( (SLL *) Exit_h_head, (SLL *) newp );
-		}
+		add_exit_handler_item(conn_id, tag);
 	}
 	else
 	{
-		if(!Exit_h_head) 
-		{
-			ENABLE_AST
-			return;
-		}
-		if( (newp = (EXIT_H *)sll_search((SLL *) Exit_h_head, 
-			(char *)&conn_id, 4)) )
-		{
-			sll_remove( (SLL *) Exit_h_head, (SLL *) newp );
-		}
+		if((exitp = find_exit_handler_item(conn_id)))
+			rem_exit_handler_item(exitp);
 	}
-	ENABLE_AST
 }
+
 
 int do_exit_handler(int conn_id)
 {
 	register EXIT_H *exitp;
+	int exit_id;
 
 	DISABLE_AST;
+	if((exitp = find_exit_handler_item(conn_id)))
+	{
+		if((exit_id = check_exit_handler_item(exitp, conn_id)))
+		{
+			(Client_exit_user_routine)( &exit_id );
+		}
+		else
+		{
+			rem_exit_handler_item(exitp);
+		}
+	}
+/*
 	if(!Exit_h_head)
 	{
 		ENABLE_AST;
@@ -2796,6 +3085,7 @@ int do_exit_handler(int conn_id)
 		(Client_exit_user_routine)( &exitp->exit_id );
 		free(exitp);
 	}
+*/
 	ENABLE_AST
 	return(1);
 }
@@ -2859,7 +3149,7 @@ int dis_hash_service_init()
   {
 	for( i = 0; i < MAX_HASH_ENTRIES; i++ ) 
 	{
-		Service_hash_table[i] = (SERVICE *) malloc(8);
+		Service_hash_table[i] = (SERVICE *) malloc(sizeof(SERVICE));
 		dll_init((DLL *) Service_hash_table[i]);
 		Service_new_entries[i] = 0;
 	}

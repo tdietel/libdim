@@ -94,9 +94,8 @@ int DimInfo::getQuality()
 
 int DimInfo::getTimestamp()
 {
-	int ret;
 
-	ret = dic_get_timestamp(itsId, &secs, &millisecs);
+	dic_get_timestamp(itsId, &secs, &millisecs);
 	return(secs);
 }
 
@@ -109,14 +108,22 @@ int DimInfo::getTimestampMillisecs()
 char *DimInfo::getFormat()
 {
 	char *def;
+	int len = 0, new_len;
 
 	if(itsFormat)
 	{
-		return itsFormat;
+		len = strlen(itsFormat)+1;
+		if(len > 1)
+			return itsFormat;
 	}
 	def = dic_get_format(itsId);
-
-	itsFormat = new char[strlen(def)+1];
+	new_len = strlen(def)+1;
+	if(new_len > len)
+	{
+		if(itsFormat)
+			delete[] itsFormat;
+		itsFormat = new char[strlen(def)+1];
+	}
 	strcpy(itsFormat, def);
 	return itsFormat;
 }
@@ -451,6 +458,8 @@ static void rpc_user_routine(void *tagp, void *bufp, int *sizep)
 	if(t->itsWaiting)
 	{
 		t->stop();
+//dim_print_date_time();
+//printf("DIM RPC: Stopped Timer, Data Received for %s\n", t->getName());
 		if(DimClient::getNoDataCopy() == 0)
 			memcpy(t->itsData, buf, size);
 		else
@@ -503,6 +512,8 @@ void DimRpcInfo::timerHandler()
 		else
 			itsData = buf;
 		itsSize = size;
+//dim_print_date_time();
+//printf("DIM RPC: Timer fired, No Data Received for %s\n", itsName);
 		wakeUp = 1;
 		if(itsInit)
 		{
@@ -617,17 +628,27 @@ void DimRpcInfo::doIt(void *data, int size)
 	while(!itsConnected)
 		dim_wait();
 	itsWaiting = 1;
+	if(itsTimeout)
+		start(itsTimeout);
+//dim_print_date_time();
+//printf("DIM RPC: Started Timer for %s - %d secs\n", itsName, itsTimeout);
 	ret = DimClient::sendCommand(itsNameOut, itsDataOut, size); 
 	if(!ret)
 	{
+		if(itsTimeout)
+			stop();
+//dim_print_date_time();
+//printf("DIM RPC: Stopped Timer, Command failed for %s\n", itsName);
 //		rpc_user_routine((int *)&itsTagId, itsNolinkBuf, &itsNolinkSize);
 		rpc_user_routine((long *)&itsHandler, itsNolinkBuf, &itsNolinkSize);
 	}
+/*
 	else
 	{
 		if(itsTimeout)
 			start(itsTimeout);
 	}
+*/
 }
 
 void *DimRpcInfo::getData()
@@ -654,6 +675,8 @@ DimRpcInfo::~DimRpcInfo()
 {
 //	if(itsTagId)
 //		id_free(itsTagId, SRC_DIC);
+//dim_print_date_time();
+//printf("DIM RPC: Deleting RPC and Timer for %s\n", itsName);
 	if(itsId)
 		dic_release_service(itsId);
 	delete[] (char *)itsNolinkBuf;
@@ -1094,15 +1117,24 @@ static void clt_error_user_routine(int severity, int code, char *msg)
 {
 
 	DimCore::inCallback = 2;
-	DimClient::itsCltError->errorHandler(severity, code, msg);
+	if(DimClient::itsCltError != 0)
+		DimClient::itsCltError->errorHandler(severity, code, msg);
 	DimCore::inCallback = 0;
 }
 }
 
 void DimClient::addErrorHandler(DimErrorHandler *handler)
 {
-	DimClient::itsCltError = handler;
-	dic_add_error_handler(clt_error_user_routine);
+	if(handler == 0)
+	{
+		dic_add_error_handler(0);
+		DimClient::itsCltError = 0;
+	}
+	else
+	{
+		DimClient::itsCltError = handler;
+		dic_add_error_handler(clt_error_user_routine);
+	}
 }
 
 void DimClient::addErrorHandler()
@@ -1189,4 +1221,11 @@ char **DimClient::getServerServices()
 		list = new char*[1];
 	list[index] = 0;
 	return list;
+}
+
+int DimClient::inCallback()
+{
+	if(DimCore::inCallback)
+		return 1;
+	return 0;
 }

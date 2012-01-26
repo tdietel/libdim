@@ -812,6 +812,13 @@ int main(int argc, char *argv[])
 			else if((!strncmp(opt_str,"all",3)) || 
 				(!strncmp(opt_str,"ALL",3)))
 				Curr_view_opt = 1;
+			else if((!strncmp(opt_str,"dns",3)) || 
+				(!strncmp(opt_str,"DNS",3))) {
+                                char text[132];
+			        sprintf(text,"DIM_DNS_NODE=%s",opt_str+4);
+   		  	        putenv(text);
+ 			        dim_set_dns_node(opt_str+4);
+			}
 			else if((!strncmp(opt_str,"service",7)) || 
 					(!strncmp(opt_str,"SERVICE",7)))
 				Curr_view_opt = 2;
@@ -823,6 +830,7 @@ int main(int argc, char *argv[])
 			  {
     printf("Did - DIM Information Display\n");
     printf("\t-all             Show ALL Servers\n");
+    printf("\t-dns=<str>       Show Servers with DIM_DNS_NODE provided by <str>\n");
     printf("\t-service=<str>   Show Servers providing Service <str>\n");
     printf("\t-node=<nodename> Show Servers on Node <nodename>\n");
     printf("\t-error           Show Servers in Error\n");
@@ -910,11 +918,25 @@ void update_show_servers();
 extern void get_all_colors();
 extern void set_title();
 extern void set_icon_title();
+char dns_node[64];
+int dns_port;
+char title[128],icon_title[128];
 
 	if(tag){}
+	dic_get_dns_node(dns_node);
+    dns_port = dic_get_dns_port();
+	if(dns_port != DNS_PORT)
+	{
+		sprintf(title,"DID - DIM Information Display DNS=%s:%d",dns_node,dns_port);
+	}
+	else
+	{
+		sprintf(title,"DID - DIM Information Display DNS=%s",dns_node);
+	}
+	sprintf(icon_title,"DID %s",dns_node);
 	get_all_colors(display,Matrix_id[Curr_matrix]);
-	set_title(toplevel_widget,"DID - DIM Information Display");
-	set_icon_title(toplevel_widget,"DID");
+	set_title(toplevel_widget,title);
+	set_icon_title(toplevel_widget,icon_title);
 	Timer_q = dtq_create();
 	dic_info_service("DIS_DNS/SERVER_INFO",MONITORED,0,0,0,update_servers,0,
 						&no_link,1);

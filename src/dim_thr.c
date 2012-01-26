@@ -50,14 +50,16 @@ void *dim_tcpip_thread(void *tag)
 	IO_thread = pthread_self();
 
 	dim_tcpip_init(1);
+	if(INIT_thread)
+	{
+#ifndef darwin
+		sem_post(&DIM_INIT_Sema);
+#else
+		sem_post(DIM_INIT_Semap);
+#endif
+	}
 	while(1)
     {
-		if(INIT_thread)
-#ifndef darwin
-			sem_post(&DIM_INIT_Sema);
-#else
-			sem_post(DIM_INIT_Semap);
-#endif
 		tcpip_task();
 		/*
 #ifndef darwin
@@ -84,16 +86,16 @@ void *dim_dtq_thread(void *tag)
 	ALRM_thread = pthread_self();
 
 	dim_dtq_init(1);
-	while(1)
-	  {
-		if(INIT_thread)
-		  {
+	if(INIT_thread)
+	{
 #ifndef darwin
-			sem_post(&DIM_INIT_Sema);
+		sem_post(&DIM_INIT_Sema);
 #else
-			sem_post(DIM_INIT_Semap);
+		sem_post(DIM_INIT_Semap);
 #endif
-		  }
+	}
+	while(1)
+	{
 		dtq_task();
 		/*
 #ifndef darwin
@@ -194,8 +196,10 @@ void dim_stop()
 		pthread_cancel(IO_thread);
 	if(ALRM_thread)
 		pthread_cancel(ALRM_thread);
-	IO_thread = 0;
-	ALRM_thread = 0;
+	if(IO_thread) 
+		pthread_join(IO_thread,0);
+	if(ALRM_thread) 
+		pthread_join(ALRM_thread,0);
 #ifndef darwin 		
 	sem_destroy(&DIM_INIT_Sema);
 	/*
@@ -213,6 +217,8 @@ void dim_stop()
 #endif
 	dim_tcpip_stop();
 	dim_dtq_stop();	
+	IO_thread = 0;
+	ALRM_thread = 0;
 	DIM_THR_init_done = 0;
 }
 
@@ -437,12 +443,19 @@ pthread_mutex_t Global_DIM_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t Global_cond_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t Global_cond = PTHREAD_COND_INITIALIZER;
 #endif
+int Global_cond_counter = 0;
+int Global_cond_waiters = 0;
 
 void dim_lock()
 {
 	/*printf("Locking %d ", pthread_self());*/
     if(Dim_thr_locker != pthread_self())
     {
+/*
+#ifdef __linux__
+		pthread_testcancel();
+#endif
+*/
 		pthread_mutex_lock(&Global_DIM_mutex);
 		Dim_thr_locker=pthread_self();
 		/*printf(": Locked ");*/
@@ -467,14 +480,29 @@ void dim_unlock()
 void dim_wait_cond()
 {
   pthread_mutex_lock(&Global_cond_mutex);
-  pthread_cond_wait(&Global_cond, &Global_cond_mutex);
+  Global_cond_waiters++;
+  if(!Global_cond_counter)
+  {
+	pthread_cond_wait(&Global_cond, &Global_cond_mutex);
+  }
+  Global_cond_waiters--;
+  if(!Global_cond_waiters)
+	  Global_cond_counter--;
   pthread_mutex_unlock(&Global_cond_mutex);
 }
 
 void dim_signal_cond()
 {
   pthread_mutex_lock(&Global_cond_mutex);
-  pthread_cond_broadcast(&Global_cond);
+  if(!Global_cond_waiters)
+  {
+	Global_cond_counter = 1;
+  }
+  else
+  {
+	Global_cond_counter++;
+	pthread_cond_broadcast(&Global_cond);
+  }
   pthread_mutex_unlock(&Global_cond_mutex);
 }
 
@@ -677,6 +705,7 @@ int dim_set_scheduler_class(int pclass)
 	int ret;
 	DWORD p;
 
+#ifndef PXI
 	hProc = GetCurrentProcess();
 
 	if(pclass == -1)
@@ -701,6 +730,9 @@ int dim_set_scheduler_class(int pclass)
 	ret = GetLastError();
 	printf("ret = %x %d\n",ret, ret);
 	return 0;
+#else
+	return 0;
+#endif
 }
 
 int dim_get_scheduler_class(int *pclass)
@@ -708,6 +740,7 @@ int dim_get_scheduler_class(int *pclass)
 	HANDLE hProc;
 	DWORD ret;
 
+#ifndef PXI
 	hProc = GetCurrentProcess();
 
 	ret = GetPriorityClass(hProc);
@@ -730,6 +763,10 @@ int dim_get_scheduler_class(int *pclass)
 	else if(ret == REALTIME_PRIORITY_CLASS)
 		*pclass = 2;
 	return 1;
+#else
+	*pclass = 0;
+	return 0;
+#endif
 }
 
 int dim_set_priority(int threadId, int prio)
@@ -737,6 +774,7 @@ int dim_set_priority(int threadId, int prio)
 	HANDLE id;
 	int ret, p;
 
+#ifndef PXI
 	if(threadId == 1)
 		id = hMAIN_thread;
 	else if(threadId == 2)
@@ -763,6 +801,9 @@ int dim_set_priority(int threadId, int prio)
 	if(ret)
 	  return 1;
 	return 0;
+#else
+	return 0;
+#endif
 }
 
 int dim_get_priority(int threadId, int *prio)
@@ -770,6 +811,7 @@ int dim_get_priority(int threadId, int *prio)
 	HANDLE id;
 	int ret, p;
 
+#ifndef PXI
 	if(threadId == 1)
 		id = hMAIN_thread;
 	else if(threadId == 2)
@@ -796,6 +838,10 @@ int dim_get_priority(int threadId, int *prio)
 		p = 3;
 	*prio = p;
 	return 1;
+#else
+	*prio = 0;
+	return 0;
+#endif
 }
 
 void dim_init()

@@ -73,9 +73,9 @@ static int Curr_n_services = 0;
 static int Curr_n_servers = 0;
 static int Last_conn_id;
 /*
-static int Debug = TRUE;
+static int Debug = 2;
 */
-static int Debug = FALSE;
+static int Debug = 0;
 
 static int Timer_q;
 static int Server_info_id, Server_new_info_id, 
@@ -92,7 +92,7 @@ _DIM_PROTO( DNS_SERVICE *service_exists, (char *name) );
 _DIM_PROTO( void check_validity,         (int conn_id) );
 _DIM_PROTO( void send_dns_server_info,   (int conn_id, int **bufp, int *size) );
 _DIM_PROTO( void print_stats,            (void) );
-_DIM_PROTO( void set_debug_on,           (void) );
+_DIM_PROTO( void set_debug_on,           (int level) );
 _DIM_PROTO( void set_debug_off,          (void) );
 _DIM_PROTO( void kill_servers,           (void) );
 _DIM_PROTO( void print_hash_table,       (void) );
@@ -194,11 +194,34 @@ int handle_registration( int conn_id, DIS_DNS_PACKET *packet, int tmout_flag )
 #endif
 	int update_did = 0;
 	int name_too_long = 0;
+	int rem_only = 0;
 
 	Dns_conns[conn_id].validity = time(NULL);
 	if( !Dns_conns[conn_id].service_head ) 
 	{
-        Dns_conns[conn_id].already = 0;
+
+		if(vtohl(packet->n_services) > 0)
+		{
+			service_id = vtohl(packet->services[0].service_id);
+			if(service_id & 0x80000000)
+				rem_only = 1;
+		}
+/*
+    if( Debug )
+	{
+			dim_print_date_time();
+			printf( " !!!! New Conn %3d : Server %s@%s (PID %d) registering %d services, to delete %d\n",
+				conn_id, packet->task_name,
+				packet->node_name, 
+				vtohl(packet->pid),
+				vtohl(packet->n_services), rem_only );
+			fflush(stdout);
+	}
+*/
+		if(rem_only)
+			return 0;
+
+		Dns_conns[conn_id].already = 0;
 		Dns_conns[conn_id].service_head =
 			(char *) malloc(sizeof(DNS_SERVICE));
 		dll_init( (DLL *) Dns_conns[conn_id].service_head );
@@ -217,6 +240,19 @@ int handle_registration( int conn_id, DIS_DNS_PACKET *packet, int tmout_flag )
 			Dns_conns[conn_id].node_addr[i] =  packet->node_addr[i];
 		Dns_conns[conn_id].pid = vtohl(packet->pid);
 		Dns_conns[conn_id].port = vtohl(packet->port);
+/*
+    if( Debug )
+	{
+			dim_print_date_time();
+			printf( " !!!! New Conn %3d : Server %s@%s (PID %d) registered %d services\n",
+				conn_id, Dns_conns[conn_id].task_name,
+				Dns_conns[conn_id].node_name, 
+				Dns_conns[conn_id].pid,
+				vtohl(packet->n_services) );
+			fflush(stdout);
+	}
+*/
+
 
 		if(strcmp(Dns_conns[conn_id].task_name,"DIS_DNS"))
 		if(DNS_accepted_domains[0] == 0)
@@ -273,7 +309,7 @@ int handle_registration( int conn_id, DIS_DNS_PACKET *packet, int tmout_flag )
 				(int)(WATCHDOG_TMOUT_MAX * 1.3), check_validity, conn_id);
 		if(strcmp(Dns_conns[conn_id].task_name,"DIS_DNS"))
 		{
-			dna_set_test_write(conn_id, 10);
+			dna_set_test_write(conn_id, dim_get_keepalive_timeout());
 		}
 		Dns_conns[conn_id].old_n_services = 0;
 /*
@@ -292,7 +328,7 @@ int handle_registration( int conn_id, DIS_DNS_PACKET *packet, int tmout_flag )
 		    vtohl(packet->n_services) )
 		{
 			if(strcmp(Dns_conns[conn_id].task_name,"DIS_DNS"))
-				dna_set_test_write(conn_id, 10);
+				dna_set_test_write(conn_id, dim_get_keepalive_timeout());
 			dim_print_date_time();
 			printf( " Server %s out of error\n",
 				Dns_conns[conn_id].task_name );
@@ -305,6 +341,18 @@ int handle_registration( int conn_id, DIS_DNS_PACKET *packet, int tmout_flag )
 		name_too_long = 1;
 	for( i = 0; i < n_services; i++ ) 
 	{
+/*
+    if( Debug )
+	{
+			dim_print_date_time();
+			printf( " Conn %3d : Server %s@%s (PID %d) registered %s\n",
+				conn_id, Dns_conns[conn_id].task_name,
+				Dns_conns[conn_id].node_name, 
+				Dns_conns[conn_id].pid,
+				packet->services[i].service_name );
+			fflush(stdout);
+	}
+*/
 		if(n_services == 1)
 		{
 			if(!strcmp(packet->services[i].service_name, "DUMMY_UPDATE_PACKET"))
@@ -601,7 +649,8 @@ void check_validity(int conn_id)
 			fflush(stdout);
 			release_conn(conn_id);
 		}
-		Dns_conns[conn_id].validity = -Dns_conns[conn_id].validity;
+		else
+			Dns_conns[conn_id].validity = -Dns_conns[conn_id].validity;
 	}
 }		
 
@@ -667,6 +716,11 @@ int handle_client_request( int conn_id, DIC_DNS_PACKET *packet )
 			dic_packet.node_addr[0] = 0;
 			dic_packet.pid = 0;
 			dic_packet.size = htovl(DNS_DIC_HEADER);
+			dim_print_date_time();
+			printf(" Connection from %s refused, stopping client pid=%s\n",
+					Net_conns[conn_id].node,
+					Net_conns[conn_id].task);
+			fflush(stdout);
 			if( !dna_write_nowait(conn_id, &dic_packet, DNS_DIC_HEADER) )
 			{
 				dim_print_date_time();
@@ -674,13 +728,7 @@ int handle_client_request( int conn_id, DIC_DNS_PACKET *packet )
 					Net_conns[conn_id].task,
 					Net_conns[conn_id].node);
 				fflush(stdout);
-				release_conn(conn_id);
 			}
-			dim_print_date_time();
-			printf(" Connection from %s refused, stopping client pid=%s\n",
-					Net_conns[conn_id].node,
-					Net_conns[conn_id].task);
-			fflush(stdout);
 			release_conn(conn_id);
 
 			return 0;
@@ -777,6 +825,8 @@ int handle_client_request( int conn_id, DIC_DNS_PACKET *packet )
 	dic_packet.node_addr[0] = 0;
 	dic_packet.pid = 0;
 	dic_packet.size = htovl(DNS_DIC_HEADER);
+	if( Dns_conns[conn_id].src_type == SRC_NONE )
+		dna_set_test_write(conn_id, dim_get_keepalive_timeout());
 	if( !(servp = service_exists(serv_regp->service_name)) ) 
 	{
 		if(Debug)
@@ -937,7 +987,7 @@ void inform_clients(DNS_SERVICE *servp)
 	NODE *full_nodep; 
 	DNS_DIC_PACKET packet;
 	char *ptr;
-	int i;
+	int i, to_release = 0;
 
 	nodep = servp->node_head;
 	prevp = nodep;
@@ -967,6 +1017,7 @@ void inform_clients(DNS_SERVICE *servp)
 					Net_conns[nodep->conn_id].task,
 					Net_conns[nodep->conn_id].node);
 			fflush(stdout);
+			to_release = nodep->conn_id;
 /*
 release_conn(nodep->conn_id);
 */
@@ -986,6 +1037,8 @@ release_conn(nodep->conn_id);
 		}
 */
 	}
+	if(to_release)
+		release_conn(to_release);
 }
 
 #ifdef VMS
@@ -1542,7 +1595,7 @@ void service_init()
   int i;
 
 	for( i = 0; i < MAX_HASH_ENTRIES; i++ ) {
-		Service_hash_table[i] = (RED_DNS_SERVICE *) malloc(8);
+		Service_hash_table[i] = (RED_DNS_SERVICE *) malloc(sizeof(RED_DNS_SERVICE));
 		dll_init((DLL *) Service_hash_table[i]);
 	}
 }
