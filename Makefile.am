@@ -126,7 +126,7 @@ libjdim_la_SOURCES =	src/dic.c \
 libjdim_la_LDFLAGS = -version-info $(LIB_VERSION)
 
 
-.PHONY: rpm
+.PHONY: rpm ipkg
 
 RPM_TOP_DIR = $(shell awk '$$1=="%_topdir" {print $$2}' < $(HOME)/.rpmmacros)
 UPLOAD_BASE = "http://alice00.physi.uni-heidelberg.de/software/upload/"
@@ -149,6 +149,11 @@ upload:	$(RPM_TOP_DIR)/RPMS/i386/libdim1-$(VERSION)-1.i386.rpm \
 	for i in $^; do \
 		curl -u $$PKG_USER:$$PKG_PASS -F rpm=@$$i $(UPLOAD_URL); \
 	done
+
+ipkg:
+	rm Makefile
+	ipkg/rules configure
+	fakeroot ipkg-buildpackage
 
 #libdim_la_CPPFLAGS = -I$(srcdir)/dim
 #
