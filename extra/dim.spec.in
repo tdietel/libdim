@@ -39,7 +39,7 @@ This package contains the shared libraries for DIM.
 
 %files -n libdim1
 %defattr(-,root,root)
-/usr/lib/libdim.so.*
+%{_libdir}/libdim.so.*
 
 %pre -n libdim1
 ldconfig
@@ -61,7 +61,7 @@ This package contains the shared libraries for DIM.
 
 %files -n libjdim1
 %defattr(-,root,root)
-/usr/lib/libjdim.so.*
+%{_libdir}/libjdim.so.*
 
 %pre -n libjdim1
 ldconfig
@@ -83,12 +83,12 @@ This package contains development files for DIM.
 %defattr(-,root,root)
 /usr/bin/dim-config
 /usr/include/dim/*
-/usr/lib/libdim.so
-/usr/lib/libjdim.so
-/usr/lib/libdim.a
-/usr/lib/libjdim.a
-%exclude /usr/lib/libdim.la
-%exclude /usr/lib/libjdim.la
+%{_libdir}/libdim.so
+%{_libdir}/libjdim.so
+%{_libdir}/libdim.a
+%{_libdir}/libjdim.a
+%exclude %{_libdir}/libdim.la
+%exclude %{_libdir}/libjdim.la
 
 #-------------------------------------------------------
 %package utils
