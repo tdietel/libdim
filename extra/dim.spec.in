@@ -15,7 +15,7 @@ DIM - Distributed Information Management
 
 %prep
 %setup
-%configure --with-java=/usr/lib/jvm/java-1.6.0-openjdk
+%configure --with-java=/usr/lib/jvm/java
 
 %build
 make
@@ -53,7 +53,8 @@ ldconfig
 Summary: Shared libraries for DIM
 Group: Development/Libraries
 
-requires: java-1.6.0-openjdk
+#requires: java-1.6.0-openjdk
+provides: libjdim.so, dim
 
 %description -n libjdim1
 This package contains the shared libraries for DIM.
@@ -61,7 +62,7 @@ This package contains the shared libraries for DIM.
 
 %files -n libjdim1
 %defattr(-,root,root)
-%{_libdir}/libjdim.so.*
+%{_libdir}/libjdim.so*
 
 %pre -n libjdim1
 ldconfig
@@ -84,7 +85,6 @@ This package contains development files for DIM.
 /usr/bin/dim-config
 /usr/include/dim/*
 %{_libdir}/libdim.so
-%{_libdir}/libjdim.so
 %{_libdir}/libdim.a
 %{_libdir}/libjdim.a
 %exclude %{_libdir}/libdim.la
