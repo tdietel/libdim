@@ -6,6 +6,7 @@ PREFIX=/usr
 Makefile:
 	./configure --host=arm-linux-uclibc \
 		--enable-threads --disable-utils \
+		--without-java \
 		--prefix=$(PREFIX)
 
 configure: Makefile
