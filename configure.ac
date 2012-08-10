@@ -153,8 +153,9 @@ AC_ARG_WITH([java],
 case x$with_java in
 
     xyes|xcheck)
-	for jdkpath in /usr/java/default/ /usr/lib/jdk/java
+	for jdkpath in /usr/java/default/ /usr/lib/jvm/java
 	do 
+	    #AC_MSG_NOTICE([checking in $jdkpath])
             if test -f $jdkpath/include/jni.h ; then use_jdk=$jdkpath; break; fi
 	done
 	;;
@@ -163,6 +164,8 @@ case x$with_java in
 
     *)    use_jdk=$with_java ;;
 esac
+
+#AC_MSG_NOTICE([found JDK in $use_jdk])
 
 AS_IF([test x$with_java = xyes -a  x$use_jdk = x],
       AC_MSG_ERROR([no JDK found to build Java interface]),)
