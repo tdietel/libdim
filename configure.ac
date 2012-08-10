@@ -155,9 +155,10 @@ case x$with_java in
     xyes|xcheck)
 	for jdkpath in /usr/java/default/ /usr/lib/jvm/java
 	do 
-	    #AC_MSG_NOTICE([checking in $jdkpath])
             if test -f $jdkpath/include/jni.h ; then use_jdk=$jdkpath; break; fi
 	done
+	AS_IF([test x$use_jdk != x],
+	      AC_MSG_NOTICE([using Java found in $use_jdk]),)
 	;;
     
     xno)  ;;
