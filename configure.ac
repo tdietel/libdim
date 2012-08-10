@@ -142,23 +142,44 @@ AC_OPTIMIZATION
 
 
 dnl __________________________________________________________________
+AC_ARG_WITH([java],
+            AS_HELP_STRING( [--with-readline],
+			    [specify java version to use]),
+            [with_java="$withval"],
+            [with_java=check])
 
-AC_ARG_WITH(java,AC_HELP_STRING([--with-java=DIR],
-                [specify which java version to use]),
-            CPPFLAGS="$CPPFLAGS -I$withval/include -I$withval/include/linux",)
 
-AS_IF([test "x$with_java" != "x"], 
-	    [AC_CHECK_HEADER(jni.h,,AC_MSG_ERROR([Can't find Java Native Interface!]))], )
 
-AM_CONDITIONAL(BUILD_LIBJDIM, test "x$with_java" != "x")
+case x$with_java in
+
+    xyes|xcheck)
+	for jdkpath in /usr/java/default/ /usr/lib/jdk/java
+	do 
+            if test -f $jdkpath/include/jni.h ; then use_jdk=$jdkpath; break; fi
+	done
+	;;
+    
+    xno)  ;;
+
+    *)    use_jdk=$with_java ;;
+esac
+
+AS_IF([test x$with_java = xyes -a  x$use_jdk = x],
+      AC_MSG_ERROR([no JDK found to build Java interface]),)
+
+AS_IF([test x$use_jdk != x],
+      [CPPFLAGS="$CPPFLAGS -I$use_jdk/include -I$use_jdk/include/linux"
+       AC_CHECK_HEADER(jni.h,,AC_MSG_ERROR([libjdim requires Java Native Interface]))], )
+
+AM_CONDITIONAL(BUILD_LIBJDIM, test "x$use_jdk" != "x")
 
 
 dnl __________________________________________________________________
 
 
 AS_IF([test "x$enable_utils" = "xyes"],
-	    [AC_CHECK_HEADER(Mrm/MrmAppl.h,,AC_MSG_ERROR([Can't find Motif header Mrm/MrmAppl.h!])),
-	     AC_CHECK_HEADER(Xm/Xm.h,,AC_MSG_ERROR([Can't find Motif header Xm/Xm.h!])) ], )
+      [AC_CHECK_HEADERS(Mrm/MrmAppl.h Xm/Xm.h,,
+	                AC_MSG_ERROR([utility program DID requires Motif]))],)
 
 dnl __________________________________________________________________
 AC_CONFIG_FILES([Makefile])

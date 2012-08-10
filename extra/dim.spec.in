@@ -15,7 +15,7 @@ DIM - Distributed Information Management
 
 %prep
 %setup
-%configure --with-java=/usr/lib/jvm/java
+%configure --with-java
 
 %build
 make
