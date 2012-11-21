@@ -181,9 +181,11 @@ AM_CONDITIONAL(BUILD_LIBJDIM, test "x$use_jdk" != "x")
 dnl __________________________________________________________________
 
 
-AS_IF([test "x$enable_utils" = "xyes"],
-      [AC_CHECK_HEADERS(Mrm/MrmAppl.h Xm/Xm.h,,
-	                AC_MSG_ERROR([utility program DID requires Motif]))],)
+if test "x$enable_utils" = "xyes" ; then
+	AC_CHECK_HEADERS(Mrm/MrmAppl.h Xm/Xm.h,, AC_MSG_ERROR([utility program DID requires Motif]))
+	AC_CHECK_LIB(Mrm, main, MOTIF_LIBS="-lMrm", AC_MSG_ERROR([utility program DID requires Motif]))
+	AC_SUBST(MOTIF_LIBS)
+fi
 
 dnl __________________________________________________________________
 AC_CONFIG_FILES([Makefile])

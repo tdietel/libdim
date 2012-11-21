@@ -64,7 +64,7 @@ dim_dns_LDADD	=  libdim.la
 
 dim_did_SOURCES	 =  src/did/did.c src/did/dui_util.c
 dim_did_CPPFLAGS =  -I$(srcdir)/src/did -I$(srcdir)/dim -I/usr/X11R6/include
-dim_did_LDADD	 =  libdim.la -L/usr/X11R6/lib/ -lMrm
+dim_did_LDADD	 =  libdim.la -L/usr/X11R6/lib/ $(MOTIF_LIBS)
 
 dim_get_service_SOURCES         =  src/util/dim_get_service.c
 dim_get_service_LDADD           =  libdim.la
