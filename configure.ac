@@ -6,8 +6,8 @@ dnl ------------------------------------------------------------------
 AC_INIT([Distributed Information Management System], [20.07], 
         [Clara.Gaspar@cern.ch], dim)
 
-AC_SUBST([RPM_RELEASE],[2])
-AC_SUBST([IPKG_RELEASE],[2])
+AC_SUBST([RPM_RELEASE],[3])
+AC_SUBST([IPKG_RELEASE],[3])
 
 AC_PREREQ(2.50)
 AC_CANONICAL_TARGET

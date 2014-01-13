@@ -33,8 +33,6 @@ rm -rf $RPM_BUILD_ROOT
 Summary: Shared libraries for DIM
 Group: Development/Libraries
 
-provides: dim
-
 %description -n libdim1
 This package contains the shared libraries for DIM.
 .
@@ -56,7 +54,7 @@ Summary: Shared libraries for DIM
 Group: Development/Libraries
 
 #requires: java-1.6.0-openjdk
-provides: libjdim.so, dim
+#provides: libjdim.so, dim
 
 %description -n libjdim1
 This package contains the shared libraries for DIM.
@@ -78,7 +76,7 @@ ldconfig
 Group: Development/Libraries
 Summary: Development files for DIM
 
-requires: dim = %{version}-%{release}
+requires: libdim1 = %{version}-%{release}
 
 %description -n libdim-devel
 This package contains development files for DIM.
@@ -100,7 +98,7 @@ This package contains development files for DIM.
 Group: Applications/Communications
 Summary: DIM utility programs
 
-requires: dim = %{version}-%{release}
+requires: libdim1 = %{version}-%{release}
 
 %description utils
 DIM utility programs
@@ -128,7 +126,7 @@ DIM utility programs
 Group: Applications/Communications
 Summary: DIM Name Server
 
-requires: dim = %{version}-%{release}
+requires: libdim1 = %{version}-%{release}
 
 %description dns
 DIM Name Server
