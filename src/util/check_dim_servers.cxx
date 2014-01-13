@@ -57,6 +57,7 @@ int main()
 	  strcpy(serviceName,server);
 	  strcat(serviceName,"/VERSION_NUMBER");
 	  srvptr = new DimVersion(serviceName, index);
+	  if(srvptr){}
 	  //	  cout << "found " << server << " " << node << endl;
 	  index++;
 	}

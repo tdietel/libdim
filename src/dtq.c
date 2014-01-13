@@ -9,6 +9,13 @@
  */
 
 /* include files */
+#ifndef WIN32
+#ifndef NOTHREADS
+int DIM_Threads_OFF = 0;
+#else
+int DIM_Threads_OFF = 1;
+#endif
+#endif
 #include <signal.h>
 #include <stdio.h>
 #define DIMLIB
@@ -75,6 +82,7 @@ void dim_no_threads()
 	extern void dic_no_threads();
 	extern void dis_no_threads();
 	
+	DIM_Threads_OFF = 1;
 	Threads_off = 1;
 	dic_no_threads();
 	dis_no_threads();
@@ -84,9 +92,11 @@ int dim_dtq_init(int thr_flag)
 {
 struct sigaction sig_info;
 sigset_t set;
-int pid, ret = 0;
+int ret = 0;
 
+/*
 	pid = getpid();
+*/
 	if( !sigvec_done) 
 	{
 	    Inside_ast = 0;
@@ -228,8 +238,8 @@ static int get_current_time(int *millies)
 #else
 	tz = 0;
 	gettimeofday(&tv, tz);
-	secs = tv.tv_sec;
-	*millies = tv.tv_usec / 1000;
+	secs = (int)tv.tv_sec;
+	*millies = (int)tv.tv_usec / 1000;
 #endif
 	return secs;
 }
@@ -263,7 +273,7 @@ static int my_alarm(int secs)
 		}
 		else
 		{
-			return(alarm(secs));
+			return((int)alarm((unsigned int)secs));
 		}
 	}
 	else
@@ -386,7 +396,7 @@ int dtq_delete(int queue_id)
 	return(1);			
 }
 	
-TIMR_ENT *dtq_add_entry(int queue_id, int time, void (*user_routine)(), long tag)
+TIMR_ENT *dtq_add_entry(int queue_id, int time, void (*user_routine)(), dim_long tag)
 {
 	TIMR_ENT *new_entry, *queue_head, *auxp, *prevp;
 	int next_time, min_time = 100000;
@@ -777,7 +787,7 @@ static void Std_timer_handler()
 {
 }
 
-void dtq_start_timer(int time, void (*user_routine)(), long tag)
+void dtq_start_timer(int time, void (*user_routine)(), dim_long tag)
 {
 	extern void dim_init_threads();
 
@@ -793,14 +803,13 @@ void dtq_start_timer(int time, void (*user_routine)(), long tag)
 }
 
 
-int dtq_stop_timer(long tag)
+int dtq_stop_timer(dim_long tag)
 {
-	TIMR_ENT *entry, *queue_head, *prevp;
+	TIMR_ENT *entry, *queue_head;
 	int time_left = -1;
 
 	queue_head = timer_queues[SPECIAL_QUEUE].queue_head;
 	entry = queue_head;
-	prevp = entry;
 	while( (entry = (TIMR_ENT *)dll_get_next((DLL *)queue_head,(DLL *)entry)) )
 	{
 		if( entry->tag == tag ) 
@@ -814,7 +823,7 @@ int dtq_stop_timer(long tag)
 
 static int Dtq_sleeping = 0;
 
-void dtq_sleep_rout(long tag)
+void dtq_sleep_rout(dim_long tag)
 {
 	if(tag){}
 	Dtq_sleeping = 0;
@@ -842,7 +851,7 @@ unsigned int dtq_sleep(int secs)
 	sigaddset(&set,SIGALRM);
 	sigprocmask(SIG_UNBLOCK, &set, &oset);
 	Dtq_sleeping = 1;
-	dtq_start_timer(secs, dtq_sleep_rout, (void *)123);
+	dtq_start_timer(secs, dtq_sleep_rout, (dim_long)123);
     do{
 		pause();
 	}while(Dtq_sleeping);
