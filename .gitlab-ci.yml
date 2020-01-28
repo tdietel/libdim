@@ -9,4 +9,4 @@ build:
     - make rpm
   artifacts:
     paths:
-    - '**.rpm'
+    - '**/rpmbuild/**'

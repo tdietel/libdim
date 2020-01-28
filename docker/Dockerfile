@@ -9,6 +9,10 @@ RUN yum install lesstif-devel -y
 
 RUN yum install gcc-c++ -y
 
+RUN yum install rpm-build -y
+
+RUN yum install java-1.8.0-openjdk-devel -y
+
 #test libdim build#
 # WORKDIR /usr/src/app
 
@@ -21,5 +25,7 @@ RUN yum install gcc-c++ -y
 # RUN ./bootstrap && ./configure
 
 # RUN make
+
+# RUN make rpm
 
 # RUN make install
