@@ -3,7 +3,7 @@ image: jasonbarrella/libdim:latest
 build:
   stage: build
   script:
-    - ./boostrap
+    - ./bootstrap
     - ./configure
     - make
     - make rpm
