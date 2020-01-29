@@ -2,7 +2,7 @@ image: jasonbarrella/libdim:latest
 
 
 variables:
-  EOS_PATH: $EOS_PATH + /packages/centos6
+  EOS_PATH: ${EOS_PATH}/packages/centos6
   EOS_ACCOUNT_USERNAME: $EOS_USER
   EOS_ACCOUNT_PASSWORD: $EOS_PASS
   CI_OUTPUT_DIR: /builds/jbarrell/libdim/RPMS
