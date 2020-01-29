@@ -18,5 +18,6 @@ build:
     paths:
     # - '/root/rpmbuild/**''
     # - /root/rpmbuild/RPMS/x86_64/libdim-devel-20.07-3.x86_64.rpm
-    - /builds/jbarrell/libdim/RPMS/**
+    - /root/rpmbuild/RPMS/**
+    # - /builds/jbarrell/libdim/RPMS/**
       
