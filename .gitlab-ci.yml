@@ -10,12 +10,14 @@ build:
     - make rpm
     - chmod -R 777 /root/rpmbuild/RPMS
     # - ls -lR /root/rpmbuild/RPMS
-    # - cp -r /root/rpmbuild/RPMS /builds/jbarrell/libdim/
-    # - chmod 777 /builds/jbarrell/libdim/libdim-devel-20.07-3.x86_64.rpm
+    - cp -r /root/rpmbuild/RPMS /builds/jbarrell/libdim/
+
+    - ls -lR /build/jbarrell/libdim/
+    - chmod -R 777 /builds/jbarrell/libdim/RPM
     # - ls -l 
   artifacts:
     paths:
     # - '/root/rpmbuild/**''
     # - /root/rpmbuild/RPMS/x86_64/libdim-devel-20.07-3.x86_64.rpm
-    - /root/rpmbuild/RPMS/**
+    - /builds/jbarrell/libdim/RPM/**
       
