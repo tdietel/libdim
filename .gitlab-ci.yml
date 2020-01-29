@@ -8,8 +8,7 @@ build:
     - ./configure
     - make
     - make rpm
-    - chmod 777 /root/rpmbuild/RPMS
-
+    - chmod -R 777 /root/rpmbuild/RPMS
     # - ls -lR /root/rpmbuild/RPMS
     # - cp -r /root/rpmbuild/RPMS /builds/jbarrell/libdim/
     # - chmod 777 /builds/jbarrell/libdim/libdim-devel-20.07-3.x86_64.rpm
