@@ -5,7 +5,7 @@ variables:
   EOS_PATH: $EOS_PATH
   EOS_ACCOUNT_USERNAME: $EOS_USER
   EOS_ACCOUNT_PASSWORD: $EOS_PASS
-  CI_OUTPUT_DIR: /builds/jbarrell/libdim/RPMS/
+  CI_OUTPUT_DIR: /builds/jbarrell/libdim/RPMS
 
   
 build:
@@ -23,9 +23,6 @@ build:
   artifacts:
     paths:
     - /builds/jbarrell/libdim/RPMS/**
-    # /eos/project/a/alice-trd/www
-
-# Deploy to an EOS folder the contents generated
 deployment:
   # Executed during the deploy stage
   stage: deploy
