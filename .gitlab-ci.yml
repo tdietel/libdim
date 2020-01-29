@@ -24,16 +24,10 @@ build:
     - /builds/jbarrell/libdim/RPMS/**
 
 deployment:
-  # Executed during the deploy stage
   stage: deploy
-  # Only when the master branch is pushed
   only:
     - master
-  # Custom docker image providing the needed tools to deploy in EOS
   image: gitlab-registry.cern.ch/ci-tools/ci-web-deployer:latest
   script:
-  # Script that performs the deploy to EOS. Makes use of the variables defined in the project
-  # It will copy the generated content to the folder in EOS
-  - echo $EOS_PATH
   - deploy-eos
       
