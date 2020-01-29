@@ -12,7 +12,7 @@ build:
     # - ls -lR /root/rpmbuild/RPMS
     - cp -r /root/rpmbuild/RPMS /builds/jbarrell/libdim/
 
-    - ls -lR /build/jbarrell/libdim/
+    - ls -lR /builds/jbarrell/libdim/
     - chmod -R 777 /builds/jbarrell/libdim/RPM
     # - ls -l 
   artifacts:
