@@ -134,7 +134,7 @@ UPLOAD_URL  = "$(UPLOAD_BASE)rpm-upload-slc5.cgi"
 
 rpm:
 	make dist
-	rpmbuild -ta --build-in-place $(PACKAGE)-$(VERSION).tar.gz
+	rpmbuild -ta --buildroot ~/ $(PACKAGE)-$(VERSION).tar.gz
 
 
 upload:	$(RPM_TOP_DIR)/RPMS/i386/libdim1-$(VERSION)-1.i386.rpm \
