@@ -3,16 +3,17 @@ image: jasonbarrella/libdim:latest
 build:
   stage: build
   script:
+    - pwd
     - ./bootstrap
     - ./configure
     - make
     - make rpm
     - ls -lR /root/rpmbuild/RPMS
-    - cp /root/rpmbuild/RPMS/x86_64/libdim-devel-20.07-3.x86_64.rpm ~/
+    - cp /root/rpmbuild/RPMS/x86_64/libdim-devel-20.07-3.x86_64.rpm $pwd
     - ls -l ~/
   artifacts:
     paths:
     # - '/root/rpmbuild/**''
     # - /root/rpmbuild/RPMS/x86_64/libdim-devel-20.07-3.x86_64.rpm
-    - ~/libdim-devel-20.07-3.x86_64.rpm
+    - $pwd/libdim-devel-20.07-3.x86_64.rpm
       
