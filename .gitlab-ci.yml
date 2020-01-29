@@ -9,4 +9,5 @@ build:
     - make rpm
   artifacts:
     paths:
-    - 'root/rpmbuild/**'
+    # - '/root/rpmbuild/**'
+    - '/root/rpmbuild/RPMS/x86_64/libdim-devel-20.07-3.x86_64.rpm'
