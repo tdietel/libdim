@@ -2,7 +2,7 @@ image: jasonbarrella/libdim:latest
 
 
 variables:
-  EOS_PATH: $EOS_PATH
+  EOS_PATH: $EOS_PATH + /packages/centos6
   EOS_ACCOUNT_USERNAME: $EOS_USER
   EOS_ACCOUNT_PASSWORD: $EOS_PASS
   CI_OUTPUT_DIR: /builds/jbarrell/libdim/RPMS
@@ -13,7 +13,6 @@ build:
   only:
     - master
   script:
-    - pwd
     - ./bootstrap
     - ./configure
     - make
@@ -23,6 +22,7 @@ build:
   artifacts:
     paths:
     - /builds/jbarrell/libdim/RPMS/**
+
 deployment:
   # Executed during the deploy stage
   stage: deploy
@@ -35,8 +35,4 @@ deployment:
   # Script that performs the deploy to EOS. Makes use of the variables defined in the project
   # It will copy the generated content to the folder in EOS
   - deploy-eos
-  # do not run any globally defined before_script or after_script for this step
-  before_script: []
-  after_script: []
-
       
