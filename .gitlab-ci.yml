@@ -8,11 +8,10 @@ build:
     - ./configure
     - make
     - make rpm
-    - chmod -R 777 /root/rpmbuild/RPMS
+    - chmod -R 755 /root/rpmbuild/RPMS
     # - ls -lR /root/rpmbuild/RPMS
     - cp -r /root/rpmbuild/RPMS /builds/jbarrell/libdim/
-
-    - ls -lR /builds/jbarrell/libdim/
+    # - ls -lR /builds/jbarrell/libdim/
     # - chmod -R 777 /builds/jbarrell/libdim/RPMS
     # - ls -l 
   artifacts:
