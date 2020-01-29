@@ -8,7 +8,10 @@ build:
     - make
     - make rpm
     - ls -lR /root/rpmbuild/RPMS
+    - cp /root/rpmbuild/RPMS/x86_64/libdim-devel-20.07-3.x86_64.rpm ~/
+    - ls -l ~/
   artifacts:
     paths:
     # - '/root/rpmbuild/**''
     - /root/rpmbuild/RPMS/x86_64/libdim-devel-20.07-3.x86_64.rpm
+      
