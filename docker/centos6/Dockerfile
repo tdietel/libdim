@@ -13,6 +13,16 @@ RUN yum install rpm-build -y
 
 RUN yum install java-1.8.0-openjdk-devel -y
 
+
+# COPY ./alicetrd.repo /etc/yum.repos.d
+
+# RUN yum repolist
+
+# RUN yum update
+
+# RUN yum install libdim-devel
+
+
 #test libdim build#
 # WORKDIR /usr/src/app
 
