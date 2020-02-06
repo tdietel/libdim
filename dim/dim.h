@@ -13,11 +13,16 @@
 
 #include "dim_common.h"
 
-#define DIM_VERSION_NUMBER 2007
+#define DIM_VERSION_NUMBER 2026
 
-
+#ifdef LABVIEWGSI
+/*this is a hack, but we have to overcome the problem that LabVIEW uses Motorola endian on an Intel machine*/
+#define MY_LITTLE_ENDIAN	0x2
+#define MY_BIG_ENDIAN 		0x1
+#else
 #define MY_LITTLE_ENDIAN	0x1
 #define MY_BIG_ENDIAN 		0x2
+#endif
 
 #define VAX_FLOAT		0x10
 #define IEEE_FLOAT 		0x20
@@ -78,11 +83,11 @@ _DIM_PROTO( short _swaps,   (short s) );
 #endif
 
 #ifdef WIN32
-#include <windows.h>
+//#include <windows.h>
 #include <process.h>
 #include <io.h>
 #include <fcntl.h>
-#include <Winsock.h>
+#include <Winsock2.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -162,8 +167,13 @@ _DIM_PROTO( short _swaps,   (short s) );
 #define CONN_BLOCK		256
 #define MAX_CONNS		1024
 #define ID_BLOCK		512
-#define TCP_RCV_BUF_SIZE	16384/*32768*//*65536*/
-#define TCP_SND_BUF_SIZE	16384/*32768*//*65536*/
+#ifdef LABVIEWGSI
+/*changed buffer size to allow LabVIEW to connect to itself*/
+#define TCP_RCV_BUF_SIZE	/*16384*//*32768*//*65536*/262144
+#else
+#define TCP_RCV_BUF_SIZE	/*16384*//*32768*/65536
+#endif
+#define TCP_SND_BUF_SIZE	/*16384*//*32768*/65536
 #endif
 #define DID_DNS_TMOUT_MIN	5
 #define DID_DNS_TMOUT_MAX	10
@@ -204,6 +214,11 @@ typedef enum { NOSWAP, SWAPS, SWAPL, SWAPD} SWAP_TYPE;
 #define	TEST_TIME_VMS		30		/* Interval to test conn.    */
 #define	TEST_WRITE_TAG		25		/* DTQ tag for test writes   */
 #define	WRITE_TMOUT			5		/* Interval to wait while writing.    */
+#ifndef WIN32
+#define	CONNECT_TMOUT		1		/* Interval to wait while connecting.    */
+#else
+#define	CONNECT_TMOUT		2		/* Interval to wait while connecting.    */
+#endif
 
 #define	OPN_MAGIC		0xc0dec0de	/* Magic value 1st packet    */
 #define	HDR_MAGIC		0xfeadfead	/* Magic value in header     */
@@ -286,6 +301,7 @@ typedef struct{
 typedef struct {
 	int size;
 	int type;
+	char dup_info[1];
 } DNS_DIS_PACKET;
 
 #define DNS_DIS_HEADER		8
@@ -479,19 +495,26 @@ typedef struct dic_serv {
 	int time_stamp[2];
 	int quality;
     int tid;
+	dim_long dnsid;
 } DIC_SERVICE;
 
 /* PROTOTYPES */
+#ifdef __cplusplus
+extern "C" {
+#define __CXX_CONST const
+#else
+#define __CXX_CONST
+#endif
 
 /* DNA */
 _DIM_PROTOE( int dna_start_read,    (int conn_id, int size) );
 _DIM_PROTOE( void dna_test_write,   (int conn_id) );
-_DIM_PROTOE( int dna_write,         (int conn_id, void *buffer, int size) );
-_DIM_PROTOE( int dna_write_nowait,  (int conn_id, void *buffer, int size) );
-_DIM_PROTOE( int dna_open_server,   (char *task, void (*read_ast)(), int *protocol,
+_DIM_PROTOE( int dna_write,         (int conn_id, __CXX_CONST void *buffer, int size) );
+_DIM_PROTOE( int dna_write_nowait,  (int conn_id, __CXX_CONST void *buffer, int size) );
+_DIM_PROTOE( int dna_open_server,   (__CXX_CONST char *task, void (*read_ast)(), int *protocol,
 				int *port, void (*error_ast)()) );
 _DIM_PROTOE( int dna_get_node_task, (int conn_id, char *node, char *task) );
-_DIM_PROTOE( int dna_open_client,   (char *server_node, char *server_task, int port,
+_DIM_PROTOE( int dna_open_client,   (__CXX_CONST char *server_node, __CXX_CONST char *server_task, int port,
                                 int server_protocol, void (*read_ast)(), void (*error_ast)(), SRC_TYPES src_type ));
 _DIM_PROTOE( int dna_close,         (int conn_id) );
 _DIM_PROTOE( void dna_report_error, (int conn_id, int code, char *routine_name) );
@@ -580,6 +603,12 @@ _DIM_PROTO( short _swaps_by_addr, (short *s) );
 _DIM_PROTO( void _swapd_buffer, (double *dout, double *din, int n) );
 _DIM_PROTO( void _swapl_buffer, (int *lout, int *lin, int n) );
 _DIM_PROTO( void _swaps_buffer, (short *sout, short *sin, int n) );
+
+#ifdef __cplusplus
+#undef __CXX_CONST
+}
+#endif
+
 
 #define SIZEOF_CHAR 1
 #define SIZEOF_SHORT 2

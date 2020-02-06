@@ -15,6 +15,7 @@
 #define DIMLIB
 #define DNA
 #include <dim.h>
+#include <time.h>
 
 /* global definitions */
 
@@ -352,9 +353,11 @@ void dna_test_write(int conn_id)
 	test_p->header_magic = htovl(TST_MAGIC);
 	tcpip_code = dna_write_bytes(conn_id, &test_pkt, READ_HEADER_SIZE,0);
 	if(tcpip_failure(tcpip_code)) {
-		 /* Connection lost. Signal upper layer ? */
+/* Connection lost. Signal upper layer ? No -> creates a deadlock in the Timer Thread*/
+/*
 		if(dna_connp->read_ast)
 			dna_connp->read_ast(conn_id, NULL, 0, STA_DISC);
+*/
 		return;
 	}
 }
@@ -623,7 +626,9 @@ static int ins_pend_conn( char *node, char *task, int port, SRC_TYPES src_type, 
 	register int i, size;
 	time_t oldest;
 	int oldesti = 0;
+/*
 	extern time_t time();
+*/
 
 	if(type == 0)
 	{
@@ -702,12 +707,24 @@ static int find_pend_conn( char *node, char *task, int port, SRC_TYPES src_type,
 	}
 	for( i = 1; i < size; i++, pending_connp++ )
 	{
-		if( (!strcmp(pending_connp->node_name, node)) &&
-			(!strcmp(pending_connp->task_name, task)) &&
-			(pending_connp->port == port) &&
-			(pending_connp->src_type == src_type))
+		if (node != 0)
 		{
-			return(i);
+			if ((!strcmp(pending_connp->node_name, node)) &&
+				(!strcmp(pending_connp->task_name, task)) &&
+				(pending_connp->port == port) &&
+				(pending_connp->src_type == src_type))
+			{
+				return(i);
+			}
+		}
+		else
+		{
+			if ((!strcmp(pending_connp->task_name, task)) &&
+				(pending_connp->src_type == src_type))
+			{
+				return(i);
+			}
+
 		}
 	}
 	return(0);
@@ -763,7 +780,7 @@ int dna_open_client(char *server_node, char *server_task, int port, int server_p
 		if(!strstr(server_node,"fidel"))
 		{
 #endif
-		if(!find_pend_conn(server_node, server_task, port, src_type, 0))
+		if (!find_pend_conn(server_node, server_task, port, src_type, 0))
 		{
 			if(src_type == SRC_DIS)
 				strcpy(src_type_str,"Server");
@@ -771,7 +788,7 @@ int dna_open_client(char *server_node, char *server_task, int port, int server_p
 				strcpy(src_type_str,"Client");
 			else
 				strcpy(src_type_str,"Unknown type");
-			sprintf( str,"%s Connecting to %s on %s", 
+			sprintf( str,"%s Connecting to %s@%s", 
 				src_type_str, server_task, server_node );
 			if(!strcmp(server_task,"DIM_DNS"))
 				dna_report_error( conn_id, tcpip_code, str, DIM_ERROR, DIMDNSCNERR );
@@ -801,6 +818,21 @@ int dna_open_client(char *server_node, char *server_task, int port, int server_p
 			dna_report_error( conn_id, -1, str, DIM_INFO, DIMTCPCNEST );
 		rel_pend_conn(id, 0);
 	}
+	else if ((id = find_pend_conn(0, server_task, 0, src_type, 0)))
+	{
+		if (src_type == SRC_DIS)
+			strcpy(src_type_str, "Server");
+		else if (src_type == SRC_DIC)
+			strcpy(src_type_str, "Client");
+		else
+			strcpy(src_type_str, "Unknown type");
+		sprintf(str, "%s (new) Connection established to", src_type_str);
+		if (!strcmp(server_task, "DIM_DNS"))
+			dna_report_error(conn_id, -1, str, DIM_INFO, DIMDNSCNEST);
+		else
+			dna_report_error(conn_id, -1, str, DIM_INFO, DIMTCPCNEST);
+//		rel_pend_conn(id, 0);
+	}
 	dna_connp->state = RD_HDR;
 	dna_connp->writing = FALSE;
 	dna_connp->buffer = (int *)malloc((size_t)TCP_RCV_BUF_SIZE);
@@ -821,10 +853,19 @@ int dna_open_client(char *server_node, char *server_task, int port, int server_p
 	tcpip_code = dna_write_nowait(conn_id, &local_buffer, sizeof(local_buffer));
 	if (tcpip_failure(tcpip_code))
 	{
+		if(src_type == SRC_DIS)
+			strcpy(src_type_str,"Server");
+		else if(src_type == SRC_DIC)
+			strcpy(src_type_str,"Client");
+		else
+			strcpy(src_type_str,"Unknown type");
 		dim_print_date_time();
-		printf(" Client Establishing Connection: Couldn't write to Conn %3d : Server %s@%s\n",conn_id,
-			Net_conns[conn_id].task, Net_conns[conn_id].node);
-		fflush(stdout);
+		sprintf(str," %s Establishing Connection: Couldn't write to Conn %3d : Server %s@%s\n",
+				src_type_str, conn_id, Net_conns[conn_id].task, Net_conns[conn_id].node);
+		if (!strcmp(server_task, "DIM_DNS"))
+			dna_report_error(conn_id, tcpip_code, str, DIM_ERROR, DIMDNSCNERR);
+		else
+			dna_report_error(conn_id, tcpip_code, str, DIM_ERROR, DIMTCPCNERR);
 		dna_close(conn_id);
 		return(0);
 	}
@@ -840,8 +881,10 @@ int dna_close(int conn_id)
 		{
 		    dna_report_error(conn_id, -1,
 				     "Write timeout, disconnecting from", DIM_ERROR, DIMTCPWRTMO);
-			if(!find_pend_conn(Net_conns[conn_id].node, Net_conns[conn_id].task, 0, 0, 1))
+			if (!find_pend_conn(Net_conns[conn_id].node, Net_conns[conn_id].task, 0, 0, 1))
+			{
 				ins_pend_conn(Net_conns[conn_id].node, Net_conns[conn_id].task, 0, 0, 1, time(NULL));
+			}
 		}
 		release_conn(conn_id);
 	}

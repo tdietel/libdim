@@ -30,7 +30,6 @@
 
 #define BAD_CONN_TIMEOUT 2
 
-
 typedef struct bad_conn {
 	struct bad_conn *next;
 	struct bad_conn *prev;
@@ -39,13 +38,31 @@ typedef struct bad_conn {
 	int retrying;
 } DIC_BAD_CONNECTION;
 
+typedef struct dic_dns_ent {
+	struct dis_dns_ent *next;
+	struct dis_dns_ent *prev;
+	dim_long dnsid;
+	TIMR_ENT *dns_dic_timr;
+	int dns_dic_conn_id;
+	int dic_dns_packet_size;
+	DIC_DNS_PACKET *dic_dns_packet;
+	int dns_version;
+	int n_connects;
+	time_t conn_time;
+} DIC_DNS_CONN;
+
+static DIC_DNS_CONN *DNS_head = (DIC_DNS_CONN *)0;
+static DIC_DNS_CONN *Default_DNS = 0;
+
 static DIC_SERVICE *Service_pend_head = 0;
 static DIC_SERVICE *Cmnd_head = 0;
 static DIC_SERVICE *Current_server = 0;
 static DIC_BAD_CONNECTION *Bad_connection_head = 0;
 static int Dic_timer_q = 0;
+/*
 static int Dns_dic_conn_id = 0;
 static TIMR_ENT *Dns_dic_timr = NULL;
+*/
 static int Tmout_max = 0;
 static int Tmout_min = 0;
 static int Threads_off = 0;
@@ -63,19 +80,19 @@ static int Debug_on = 0;
 _DIM_PROTO( unsigned request_service, (char *service_name, int req_type,
 				    int req_timeout, void *service_address,
 				    int service_size, void (*usr_routine)(void*,void*,int*),
-				    dim_long tag, void *fill_addr, int fill_size, int stamped) );
+				    dim_long tag, void *fill_addr, int fill_size, int stamped, dim_long dnsid) );
 _DIM_PROTO( int request_command,      (char *service_name, void *service_address,
 				    int service_size, void (*usr_routine)(void*,int*),
-				    dim_long tag, int stamped) );
+				    dim_long tag, int stamped, dim_long dnsid) );
 _DIM_PROTO( DIC_SERVICE *insert_service, (int type, int timeout, char *name,
 				  int *address, int size, void (*routine)(),
 				  dim_long tag, int *fill_addr, int fill_size,
-				  int pending, int stamped ) );
+				  int pending, int stamped, dim_long dnsid ) );
 _DIM_PROTO( void modify_service, (DIC_SERVICE *servp, int timeout,
 				  int *address, int size, void (*routine)(),
 				  dim_long tag, int *fill_addr, int fill_size, int stamped) );
-_DIM_PROTO( DIC_SERVICE *locate_command, (char *serv_name) );
-_DIM_PROTO( DIC_SERVICE *locate_pending, (char *serv_name) );
+_DIM_PROTO( DIC_SERVICE *locate_command, (char *serv_name, dim_long dnsid) );
+_DIM_PROTO( DIC_SERVICE *locate_pending, (char *serv_name, dim_long dnsid) );
 _DIM_PROTO( DIC_BAD_CONNECTION *locate_bad, (char *node, char *task, int port) );
 _DIM_PROTO( void service_tmout,      (int serv_id) );
 _DIM_PROTO( static void request_dns_info,      (int retry) );
@@ -110,6 +127,45 @@ void dic_no_threads()
 	Threads_off = 1;
 }
 
+static DIC_DNS_CONN *create_dns(dim_long dnsid)
+{
+	DIC_DNS_CONN *dnsp;
+
+	dnsp = malloc(sizeof(DIC_DNS_CONN));
+	dnsp->dns_dic_timr = (TIMR_ENT *)0;
+	dnsp->dns_dic_conn_id = 0;
+	dnsp->dic_dns_packet_size = 0;
+	dnsp->dic_dns_packet = (DIC_DNS_PACKET *)0;
+	dnsp->dnsid = dnsid;
+	dnsp->n_connects = 0;
+	dnsp->conn_time = 0;
+	dnsp->dns_version = 1;
+	dll_insert_queue((DLL *)DNS_head, (DLL *)dnsp);
+	return dnsp;
+}
+
+DIC_DNS_CONN *dic_find_dns(dim_long dnsid)
+{
+	DIC_DNS_CONN *dnsp;
+
+	dnsp = (DIC_DNS_CONN *)
+		dll_search((DLL *)DNS_head, &dnsid, sizeof(dnsid));
+	return dnsp;
+}
+
+DIC_DNS_CONN *dic_find_dns_by_conn_id(int conn_id)
+{
+	DIC_DNS_CONN *dnsp;
+	extern dim_long dns_get_dnsid();
+	dim_long dnsid;
+
+	dnsid = dns_get_dnsid(conn_id, SRC_DIS);
+	dnsp = dic_find_dns(dnsid);
+	if (!dnsp)
+		dnsp = Default_DNS;
+	return (DIC_DNS_CONN *)dnsp;
+}
+
 void dic_add_error_handler( void (*user_routine)()) 
 {
 
@@ -141,6 +197,222 @@ static void error_handler(int conn_id, int severity, int errcode, char *reason)
 	}
 }
 
+DIC_SERVICE *insert_service(int type, int timeout, char *name, int *address, int size,
+	void(*routine)(), dim_long tag, int *fill_addr, int fill_size,
+	int pending, int stamped, dim_long dnsid)
+{
+	register DIC_SERVICE *newp;
+	DIC_DNS_CONN *dnsp;
+	int *fillp;
+	int service_id;
+	int tout;
+	float ftout;
+
+	DISABLE_AST
+		newp = (DIC_SERVICE *)malloc(sizeof(DIC_SERVICE));
+	newp->pending = 0;
+	dnsp = dic_find_dns(dnsid);
+	if (!dnsp)
+		dnsp = create_dns(dnsid);
+	newp->dnsid = dnsid;
+	strncpy(newp->serv_name, name, (size_t)MAX_NAME);
+	newp->type = type;
+	newp->timeout = timeout;
+	newp->serv_address = address;
+	newp->serv_size = size;
+	newp->user_routine = routine;
+	newp->tag = tag;
+	fillp = fill_addr;
+	if (fill_size > 0)
+	{
+		fillp = (int *)malloc((size_t)fill_size);
+		memcpy((char *)fillp, (char *)fill_addr, (size_t)fill_size);
+	}
+	newp->fill_address = fillp;
+	newp->fill_size = fill_size;
+	newp->conn_id = 0;
+	newp->format_data[0].par_bytes = 0;
+	newp->next = (DIC_SERVICE *)0;
+	service_id = id_get((void *)newp, SRC_DIC);
+	newp->serv_id = service_id;
+	if (!Service_pend_head)
+	{
+		Service_pend_head = (DIC_SERVICE *)malloc(sizeof(DIC_SERVICE));
+		dll_init((DLL *)Service_pend_head);
+		Service_pend_head->serv_id = 0;
+	}
+	dll_insert_queue((DLL *)Service_pend_head, (DLL *)newp);
+	newp->timer_ent = NULL;
+	if (type != MONIT_FIRST)
+	{
+		if (timeout)
+		{
+			tout = timeout;
+			if (type != ONCE_ONLY)
+			{
+				if (tout < 10)
+					tout = 10;
+				ftout = (float)tout * (float)1.5;
+				tout = (int)ftout;
+			}
+			newp->curr_timeout = tout;
+			newp->timer_ent = dtq_add_entry(Dic_timer_q,
+				newp->curr_timeout,
+				service_tmout, newp->serv_id);
+		}
+	}
+	newp->pending = pending;
+	newp->tmout_done = 0;
+	newp->stamped = stamped;
+	newp->time_stamp[0] = 0;
+	newp->time_stamp[1] = 0;
+	newp->quality = 0;
+	newp->def[0] = '\0';
+#ifdef VxWorks
+	newp->tid = taskIdSelf();
+#endif
+	ENABLE_AST
+		return(newp);
+}
+
+int request_command(char *serv_name, void *serv_address, int serv_size,
+	void(*usr_routine)(), dim_long tag, int stamped, dim_long dnsid)
+{
+	int conn_id, ret;
+	register DIC_SERVICE *servp, *testp;
+	int *fillp;
+	int send_command();
+	int end_command();
+	int locate_service();
+	void dic_dns_init();
+
+	dic_dns_init();
+	{
+		DISABLE_AST
+			/* create a timer queue for timeouts if not yet done */
+			if (!Dic_timer_q) {
+				conn_arr_create(SRC_DIC);
+				Dic_timer_q = dtq_create();
+			}
+
+		/* store_service */
+		if (!Cmnd_head) {
+			Cmnd_head = (DIC_SERVICE *)malloc(sizeof(DIC_SERVICE));
+			dll_init((DLL *)Cmnd_head);
+			Cmnd_head->serv_id = 0;
+		}
+		if ((servp = locate_command(serv_name, dnsid)))
+		{
+			if (!(testp = locate_pending(serv_name, dnsid)))
+			{
+				if ((conn_id = servp->conn_id))
+				{
+					if (servp->fill_size > 0)
+						free(servp->fill_address);
+					fillp = serv_address;
+					if (serv_size > 0)
+					{
+						fillp = (int *)malloc((size_t)serv_size);
+						memcpy((char *)fillp, (char *)serv_address, (size_t)serv_size);
+					}
+					servp->fill_address = fillp;
+					servp->fill_size = serv_size;
+					/*
+					servp->fill_address = (int *)serv_address;
+					servp->fill_size = serv_size;
+					*/
+					servp->user_routine = usr_routine;
+					servp->tag = tag;
+					ret = send_command(conn_id, servp);
+					end_command(servp, ret);
+					ENABLE_AST
+						return(1);
+				}
+			}
+		}
+		servp = insert_service(COMMAND, 0,
+			serv_name, 0, 0, usr_routine, tag,
+			(int *)serv_address, serv_size,
+			WAITING_DNS_UP, stamped, dnsid);
+		if (locate_service(servp) <= 0)
+		{
+			/*
+			service_tmout( servp->serv_id );
+			*/
+			dtq_start_timer(0, service_tmout, servp->serv_id);
+		}
+		ENABLE_AST
+	}
+	return(-1);
+}
+
+unsigned request_service(char *serv_name, int req_type, int req_timeout, void *serv_address,
+	int serv_size, void(*usr_routine)(), dim_long tag, void *fill_addr, int fill_size,
+	int stamped, dim_long dnsid)
+{
+	register DIC_SERVICE *servp;
+	int conn_id;
+	int send_service();
+	int locate_service();
+	void dic_dns_init();
+
+	dic_dns_init();
+	{
+		DISABLE_AST
+			/* create a timer queue for timeouts if not yet done */
+			if (!Dic_timer_q) {
+				conn_arr_create(SRC_DIC);
+				Dic_timer_q = dtq_create();
+			}
+
+		/* store_service */
+		if (req_timeout < 0)
+			req_timeout = 0;
+		if (req_type == ONCE_ONLY)
+		{
+			if (!Cmnd_head) {
+				Cmnd_head = (DIC_SERVICE *)malloc(sizeof(DIC_SERVICE));
+				dll_init((DLL *)Cmnd_head);
+				Cmnd_head->serv_id = 0;
+			}
+			if ((servp = locate_command(serv_name, dnsid)))
+			{
+				if ((conn_id = servp->conn_id))
+				{
+					if (servp->pending == NOT_PENDING)
+					{
+						modify_service(servp, req_timeout,
+							(int *)serv_address, serv_size, usr_routine, tag,
+							(int *)fill_addr, fill_size, stamped);
+						servp->pending = WAITING_SERVER_UP;
+						if (send_service(conn_id, servp))
+						{
+							ENABLE_AST
+								return(1);
+						}
+					}
+				}
+			}
+		}
+		servp = insert_service(req_type, req_timeout,
+			serv_name, (int *)serv_address, serv_size, usr_routine, tag,
+			(int *)fill_addr, fill_size, WAITING_DNS_UP, stamped, dnsid);
+
+		/* get_address of server from name_server */
+
+		if (locate_service(servp) <= 0)
+		{
+			/*
+			service_tmout( servp->serv_id );
+			*/
+			dtq_start_timer(0, service_tmout, servp->serv_id);
+		}
+		ENABLE_AST
+	}
+	return((unsigned)servp->serv_id);
+}
+
+
 static void recv_rout( int conn_id, DIS_PACKET *packet, int size, int status )
 {
 	register DIC_SERVICE *servp, *auxp;
@@ -150,6 +422,7 @@ static void recv_rout( int conn_id, DIS_PACKET *packet, int size, int status )
 	void move_to_notok_service();
 	void do_cmnd_callback();
 	void dim_panic(char *);
+	DIC_DNS_CONN *dnsp;
 
 	dic_connp = &Dic_conns[conn_id] ;
 	switch( status )
@@ -180,11 +453,12 @@ static void recv_rout( int conn_id, DIS_PACKET *packet, int size, int status )
 	Will be done later by the DNS answer
 			service_tmout( servp->serv_id );
 */
+			dnsp = dic_find_dns(servp->dnsid);
 			if(!strcmp(dic_connp->task_name,"DIS_DNS"))
 			{
 				service_tmout( servp->serv_id );
 			}
-			else if(Dns_dic_conn_id <= 0)
+			else if(dnsp->dns_dic_conn_id <= 0)
 			{
 				service_tmout( servp->serv_id );
 			}
@@ -332,7 +606,7 @@ static void recv_rout( int conn_id, DIS_PACKET *packet, int size, int status )
 				Curr_conn_id = 0;
 				if( once_only )
 				{
-					auxp = locate_command(servp->serv_name);
+					auxp = locate_command(servp->serv_name, servp->dnsid);
 					if((auxp) && (auxp != servp))
 					{
 						servp->pending = WAITING_DNS_UP;
@@ -466,7 +740,9 @@ static void recv_dns_dic_rout( int conn_id, DNS_DIC_PACKET *packet, int size, in
 {
 	register DIC_SERVICE *servp, *auxp;
 	void dim_panic(char *);
+	DIC_DNS_CONN *dnsp;
 
+	dnsp = dic_find_dns_by_conn_id(conn_id);
 	if(size){}
 	switch( status )
 	{
@@ -492,16 +768,16 @@ static void recv_dns_dic_rout( int conn_id, DNS_DIC_PACKET *packet, int size, in
 				}
 			}
 		}
-		dna_close( Dns_dic_conn_id );
-		Dns_dic_conn_id = 0;
+		dna_close(dnsp->dns_dic_conn_id );
+		dnsp->dns_dic_conn_id = 0;
 		request_dns_info(0);
 		break;
 	case STA_CONN:        /* connection received */
-		if(Dns_dic_conn_id < 0)
+		dna_set_test_write(conn_id, 2*(dim_get_keepalive_timeout()));
+		if(dnsp->dns_dic_conn_id < 0)
 		{
-			Dns_dic_conn_id = conn_id;
+			dnsp->dns_dic_conn_id = conn_id;
 			request_dns_info(0);
-
 		}
 		break;
 	case STA_DATA:       /* normal packet */
@@ -519,7 +795,8 @@ void service_tmout( int serv_id )
 {
 	int once_only, size = 0;
 	register DIC_SERVICE *servp;
-	
+	char str[512];
+
 /*
 dim_print_date_time();
 printf("In service tmout\n");
@@ -548,6 +825,24 @@ printf("In service tmout %s\n", servp->serv_name);
 			else
 				size = 0;
 			(servp->user_routine)( &servp->tag, &size );
+		}
+		else
+		{
+			if((servp->pending == WAITING_DNS_UP) || (servp->pending == WAITING_DNS_ANSWER))
+			{
+				sprintf(str, "Client Sending Command: Command %s discarded, no DNS answer\n", servp->serv_name);
+				error_handler(0, DIM_ERROR, DIMDNSCNERR, str);
+/*
+				dim_print_date_time();
+				printf("Client Sending Command: Command %s discarded, no DNS answer\n", servp->serv_name);
+				fflush(stdout);
+*/
+			}
+/*
+			else if(servp->pending == WAITING_SERVER_UP)
+			{
+			}
+*/
 		}
 		dic_release_service( (unsigned)servp->serv_id );
 		Curr_conn_id = 0;
@@ -591,7 +886,19 @@ unsigned dic_info_service( char *serv_name, int req_type, int req_timeout, void 
 
 	ret = request_service( serv_name, req_type, req_timeout, 
 		serv_address, serv_size, usr_routine, tag, 
-		fill_addr, fill_size, 0 ); 
+		fill_addr, fill_size, 0, 0); 
+
+	return(ret);
+}
+
+unsigned dic_info_service_dns(dim_long dnsid, char *serv_name, int req_type, int req_timeout, void *serv_address,
+	int serv_size, void(*usr_routine)(), dim_long tag, void *fill_addr, int fill_size)
+{
+	unsigned ret;
+
+	ret = request_service(serv_name, req_type, req_timeout,
+		serv_address, serv_size, usr_routine, tag,
+		fill_addr, fill_size, 0, dnsid);
 
 	return(ret);
 }
@@ -603,77 +910,48 @@ unsigned dic_info_service_stamped( char *serv_name, int req_type, int req_timeou
 
 	ret = request_service( serv_name, req_type, req_timeout, 
 		serv_address, serv_size, usr_routine, tag, 
-		fill_addr, fill_size, 1 ); 
+		fill_addr, fill_size, 1, 0); 
 
 	return(ret);
 }
 
-unsigned request_service( char *serv_name, int req_type, int req_timeout, void *serv_address,
-			   int serv_size, void (*usr_routine)(), dim_long tag, void *fill_addr, int fill_size, int stamped )
+unsigned dic_info_service_stamped_dns(dim_long dnsid, char *serv_name, int req_type, int req_timeout, void *serv_address,
+	int serv_size, void(*usr_routine)(), dim_long tag, void *fill_addr, int fill_size)
 {
-	register DIC_SERVICE *servp;
-	int conn_id;
-	int send_service();
-	int locate_service();
-	void dim_init_threads(void);
+	unsigned ret;
 
-	if(!Threads_off)
-	{
-		dim_init_threads();
-	}
-	{
-	DISABLE_AST
-	/* create a timer queue for timeouts if not yet done */
-	if( !Dic_timer_q ) {
-		conn_arr_create( SRC_DIC );
-		Dic_timer_q = dtq_create();
-	}
+	ret = request_service(serv_name, req_type, req_timeout,
+		serv_address, serv_size, usr_routine, tag,
+		fill_addr, fill_size, 1, dnsid);
 
-	/* store_service */
-	if(req_timeout < 0)
-		req_timeout = 0;
-	if(req_type == ONCE_ONLY)
+	return(ret);
+}
+
+void dic_dns_init()
+{
+	static int done = 0;
+	DIC_DNS_CONN *dnsp;
+	void dim_init_threads();
+
+	if(!done)
 	{
-		if( !Cmnd_head ) {
-			Cmnd_head = (DIC_SERVICE *) malloc(sizeof(DIC_SERVICE) );
-			dll_init( (DLL *) Cmnd_head );
-			Cmnd_head->serv_id = 0;
-		}
-		if( (servp = locate_command(serv_name)) ) 
+		if(!Threads_off)
 		{
-			if( (conn_id = servp->conn_id) ) 
-			{
-				if(servp->pending == NOT_PENDING)
-				{
-					modify_service( servp, req_timeout,
-						(int *)serv_address, serv_size, usr_routine, tag,
-						(int *)fill_addr, fill_size, stamped);
-					servp->pending = WAITING_SERVER_UP;
-					if(send_service(conn_id, servp))
-					{
-						ENABLE_AST
-						return(1);
-					}
-				}
-			}	
+			dim_init_threads();
+		}
+		{
+		DISABLE_AST
+		if(!DNS_head) 
+		{
+			DNS_head = (DIC_DNS_CONN *)malloc(sizeof(DIC_DNS_CONN));
+			dll_init( (DLL *) DNS_head );
+		}
+		dnsp = create_dns(0);
+		Default_DNS = dnsp;
+		done = 1;
+		ENABLE_AST
 		}
 	}
-	servp = insert_service( req_type, req_timeout,
-			serv_name, (int *)serv_address, serv_size, usr_routine, tag,
-			(int *)fill_addr, fill_size, WAITING_DNS_UP, stamped );
-            
-	/* get_address of server from name_server */
-   
-	if( locate_service(servp) <= 0)
-	{
-/*
-		service_tmout( servp->serv_id );
-*/
-		dtq_start_timer( 0, service_tmout, servp->serv_id);
-	}
-	ENABLE_AST
-	}
-	return((unsigned) servp->serv_id);
 }
 
 
@@ -682,7 +960,18 @@ int dic_cmnd_service( char *serv_name, void *serv_address, int serv_size )
 	int ret;
 
 	ret = request_command( serv_name, serv_address, serv_size, 
-		0, 0, 0 ); 
+		0, 0, 0, 0 ); 
+
+	return(ret ? 1 : 0);
+
+}
+
+int dic_cmnd_service_dns(dim_long dnsid, char *serv_name, void *serv_address, int serv_size)
+{
+	int ret;
+
+	ret = request_command(serv_name, serv_address, serv_size,
+		0, 0, 0, dnsid);
 
 	return(ret ? 1 : 0);
 
@@ -693,7 +982,18 @@ int dic_cmnd_service_stamped( char *serv_name, void *serv_address, int serv_size
 	int ret;
 
 	ret = request_command( serv_name, serv_address, serv_size, 
-		0, 0, 1 ); 
+		0, 0, 1, 0 ); 
+
+	return(ret ? 1 : 0);
+
+}
+
+int dic_cmnd_service_stamped_dns(dim_long dnsid, char *serv_name, void *serv_address, int serv_size)
+{
+	int ret;
+
+	ret = request_command(serv_name, serv_address, serv_size,
+		0, 0, 1, dnsid);
 
 	return(ret ? 1 : 0);
 
@@ -705,7 +1005,17 @@ int dic_cmnd_callback( char *serv_name, void *serv_address, int serv_size,
 	int ret;
 
 	ret = request_command( serv_name, serv_address, serv_size, 
-		usr_routine, tag, 0 ); 
+		usr_routine, tag, 0, 0); 
+	return(ret ? 1 : 0);
+}
+
+int dic_cmnd_callback_dns(dim_long dnsid, char *serv_name, void *serv_address, int serv_size,
+	void(*usr_routine)(), dim_long tag)
+{
+	int ret;
+
+	ret = request_command(serv_name, serv_address, serv_size,
+		usr_routine, tag, 0, dnsid);
 	return(ret ? 1 : 0);
 }
 
@@ -715,155 +1025,18 @@ int dic_cmnd_callback_stamped( char *serv_name, void *serv_address, int serv_siz
 	int ret;
 
 	ret = request_command( serv_name, serv_address, serv_size, 
-		usr_routine, tag, 1 ); 
+		usr_routine, tag, 1, 0); 
 	return(ret ? 1 : 0);
 }
 
-int request_command(char *serv_name, void *serv_address, int serv_size, 
-					  void (*usr_routine)(), dim_long tag, int stamped)
+int dic_cmnd_callback_stamped_dns(dim_long dnsid, char *serv_name, void *serv_address, int serv_size,
+	void(*usr_routine)(), dim_long tag)
 {
-	int conn_id, ret;
-	register DIC_SERVICE *servp, *testp;
-	int *fillp;
-	int send_command();
-	int end_command();
-	void dim_init_threads(void);
-	int locate_service();
+	int ret;
 
-	if(!Threads_off)
-	{
-		dim_init_threads();
-	}
-	{
-	DISABLE_AST
-	/* create a timer queue for timeouts if not yet done */
-	if( !Dic_timer_q ) {
-		conn_arr_create( SRC_DIC );
-		Dic_timer_q = dtq_create();
-	}
-
-	/* store_service */
-	if( !Cmnd_head ) {
-		Cmnd_head = (DIC_SERVICE *) malloc(sizeof(DIC_SERVICE) );
-		dll_init( (DLL *) Cmnd_head );
-		Cmnd_head->serv_id = 0;
-	}
-	if( (servp = locate_command(serv_name)) ) 
-	{
-		if(!(testp = locate_pending(serv_name)))
-		{
-			if( (conn_id = servp->conn_id) ) 
-			{
-				if(servp->fill_size > 0)
-					free( servp->fill_address );
-				fillp = serv_address;
-				if(serv_size > 0)
-				{
-					fillp = (int *)malloc((size_t)serv_size);
-					memcpy( (char *)fillp, (char *)serv_address, (size_t)serv_size );
-				}
-				servp->fill_address = fillp;
-				servp->fill_size = serv_size;
-/*
-				servp->fill_address = (int *)serv_address;
-				servp->fill_size = serv_size;
-*/
-				servp->user_routine = usr_routine;
-				servp->tag = tag;
-				ret = send_command(conn_id, servp);
-				end_command(servp, ret);
-				ENABLE_AST
-				return(1);
-			}
-		}	
-	}
-	servp = insert_service( COMMAND, 0,
-				serv_name, 0, 0, usr_routine, tag, 
-				(int *)serv_address, serv_size,
-				WAITING_DNS_UP, stamped );	
-	if( locate_service(servp) <= 0)
-	{
-/*
-		service_tmout( servp->serv_id );
-*/
-		dtq_start_timer( 0, service_tmout, servp->serv_id);
-	}
-	ENABLE_AST
-	}
-	return(-1);
-}
-
-DIC_SERVICE *insert_service( int type, int timeout, char *name, int *address, int size, 
-							void (*routine)(), dim_long tag, int *fill_addr, int fill_size, 
-							int pending, int stamped)
-{
-	register DIC_SERVICE *newp;
-	int *fillp;
-	int service_id;
-	int tout;
-	float ftout;
-
-	DISABLE_AST
-	newp = (DIC_SERVICE *) malloc(sizeof(DIC_SERVICE));
-	newp->pending = 0;
-	strncpy( newp->serv_name, name, (size_t)MAX_NAME );
-	newp->type = type;
-	newp->timeout = timeout;
-	newp->serv_address = address;
-	newp->serv_size = size;
-	newp->user_routine = routine;
-	newp->tag = tag;
-	fillp = fill_addr;
-	if(fill_size > 0)
-	{
-		fillp = (int *)malloc((size_t)fill_size);
-		memcpy( (char *) fillp, (char *) fill_addr, (size_t)fill_size );
-	}
-	newp->fill_address = fillp;
-	newp->fill_size = fill_size;
-	newp->conn_id = 0;
-	newp->format_data[0].par_bytes = 0;
-	newp->next = (DIC_SERVICE *)0;
-	service_id = id_get((void *)newp, SRC_DIC);
-	newp->serv_id = service_id;
-	if( !Service_pend_head )
-	{
-		Service_pend_head = (DIC_SERVICE *) malloc(sizeof(DIC_SERVICE));
-		dll_init( (DLL *) Service_pend_head );
-		Service_pend_head->serv_id = 0;
-	}
-	dll_insert_queue( (DLL *) Service_pend_head, (DLL *)newp );
-	newp->timer_ent = NULL;
-	if(type != MONIT_FIRST)
-	{
-		if( timeout ) 
-		{
-			tout = timeout;
-			if(type != ONCE_ONLY)
-			{
-				if(tout < 10) 
-					tout = 10;
-				ftout = (float)tout * (float)1.5;
-				tout = (int)ftout;
-			}
-			newp->curr_timeout = tout;
-			newp->timer_ent = dtq_add_entry( Dic_timer_q,
-						newp->curr_timeout,
-						service_tmout, newp->serv_id );
-		}
-	}
-	newp->pending = pending;
-	newp->tmout_done = 0;
-	newp->stamped = stamped;
-	newp->time_stamp[0] = 0;
-	newp->time_stamp[1] = 0;
-	newp->quality = 0;
-	newp->def[0] = '\0';
-#ifdef VxWorks
-	newp->tid = taskIdSelf();
-#endif
-	ENABLE_AST
-	return(newp);
+	ret = request_command(serv_name, serv_address, serv_size,
+		usr_routine, tag, 1, dnsid);
+	return(ret ? 1 : 0);
 }
 
 
@@ -1018,6 +1191,7 @@ void dic_release_service( unsigned service_id )
 	register DIC_DNS_PACKET *dic_dns_p = &dic_dns_packet;
 	SERVICE_REQ *serv_reqp;
 	int release_service();
+	DIC_DNS_CONN *dnsp;
 
 	DISABLE_AST
 	if( !packet_size ) {
@@ -1041,6 +1215,7 @@ void dic_release_service( unsigned service_id )
 		return;
 	}
 	pending = servp->pending;
+	dnsp = dic_find_dns(servp->dnsid);
 	switch( pending )
 	{
 	case NOT_PENDING :
@@ -1058,13 +1233,13 @@ void dic_release_service( unsigned service_id )
 			servp->pending = DELETED;
 			break;
 		}
-		if( Dns_dic_conn_id > 0) {
+		if(dnsp->dns_dic_conn_id > 0) {
 			dic_dns_p->size = htovl(sizeof(DIC_DNS_PACKET));
 			dic_dns_p->src_type = htovl(SRC_DIC);
 			serv_reqp = &dic_dns_p->service;
 			strcpy( serv_reqp->service_name, servp->serv_name );
 			serv_reqp->service_id = (int)htovl((unsigned)servp->serv_id | 0x80000000);
-			dna_write( Dns_dic_conn_id, dic_dns_p,
+			dna_write(dnsp->dns_dic_conn_id, dic_dns_p,
 				  sizeof(DIC_DNS_PACKET) );
 		}
 		release_service( servp );
@@ -1089,6 +1264,7 @@ int release_service( DIC_SERVICE *servicep )
 	register DIC_CONNECTION *dic_connp;
 	char name[MAX_NAME], *ptr;
 	int id;
+	dim_long dnsid;
 
 	id = servicep->serv_id;
 	servicep->serv_id = 0;
@@ -1107,6 +1283,7 @@ int release_service( DIC_SERVICE *servicep )
 	if(strstr(servicep->serv_name,"/RpcOut"))
 	{
 		strcpy(name, servicep->serv_name);
+		dnsid = servicep->dnsid;
 	}
 	else
 		name[0] = '\0';
@@ -1142,17 +1319,79 @@ int release_service( DIC_SERVICE *servicep )
 	{
 		ptr = strstr(name,"/RpcOut");
 		strcpy(ptr + 4, "In"); 
-		if( (servp = locate_command(name)) )
+		if( (servp = locate_command(name, dnsid)) )
 			release_service(servp); 
 	}
 	id_free(id, SRC_DIC);
 	return(1);
 }
+/*
+int open_dnss(DIC_DNS_CONN *adnsp, int tmout_min, int tmout_max)
+{
+	DIC_DNS_CONN *dnsp;
+	extern int open_dns(dim_long, void(*)(), void(*)(), int, int, int);
+	int n = 0;
 
+	if (adnsp == 0)
+	{
+		dnsp = (DIC_DNS_CONN *)DNS_head;
+		while ((dnsp = (DIC_DNS_CONN *)dll_get_next((DLL *)DNS_head, (DLL *)dnsp)))
+		{
+			if (!dnsp->dns_dic_conn_id)
+			{
+				DISABLE_AST;
+				dnsp->dns_dic_conn_id = open_dns(0, recv_dns_dic_rout, error_handler,
+					tmout_min,
+					tmout_max,
+					SRC_DIC);
+				if (dnsp->dns_dic_conn_id == -2)
+					error_handler(0, DIM_FATAL, DIMDNSUNDEF, "DIM_DNS_NODE undefined");
+				ENABLE_AST;
+				n++;
+			}
+		}
+	}
+	else
+	{
+		dnsp = adnsp;
+		if (!dnsp->dns_dic_conn_id)
+		{
+			DISABLE_AST;
+			dnsp->dns_dic_conn_id = open_dns(0, recv_dns_dic_rout, error_handler,
+				tmout_min,
+				tmout_max,
+				SRC_DIC);
+			if (dnsp->dns_dic_conn_id == -2)
+				error_handler(0, DIM_FATAL, DIMDNSUNDEF, "DIM_DNS_NODE undefined");
+			ENABLE_AST;
+			n++;
+		}
+	}
+	return n;
+}
 
+request_dnss_info(int id)
+{
+	DIC_DNS_CONN *dnsp;
+	int n = 0;
+
+	dnsp = (DIC_DNS_CONN *)DNS_head;
+	while ((dnsp = (DIC_DNS_CONN *)dll_get_next((DLL *)DNS_head, (DLL *)dnsp)))
+	{
+		if (dnsp->dns_dic_conn_id > 0)
+		{
+			DISABLE_AST;
+			request_dns_info(dnsp, id);
+			ENABLE_AST;
+			n++;
+		}
+	}
+}
+*/
 int locate_service( DIC_SERVICE *servp )
 {
-	extern int open_dns(dim_long, void (*)(), void (*)(), int, int, int);
+	DIC_DNS_CONN *dnsp;
+	extern int open_dns();
 
 	if(!strcmp(servp->serv_name,"DIS_DNS/SERVER_INFO"))
 	{
@@ -1164,48 +1403,63 @@ int locate_service( DIC_SERVICE *servp )
 		Tmout_min = DIC_DNS_TMOUT_MIN;
 		Tmout_max = DIC_DNS_TMOUT_MAX;
 	}
-	if( !Dns_dic_conn_id )
-	  {
+/*
+	open_dnss(0, Tmout_min, Tmout_max);
+*/
+	dnsp = dic_find_dns(servp->dnsid);
+	if( !dnsp->dns_dic_conn_id )
+	{
 	    DISABLE_AST;
-		Dns_dic_conn_id = open_dns( 0, recv_dns_dic_rout, error_handler,
+		dnsp->dns_dic_conn_id = open_dns( dnsp->dnsid, recv_dns_dic_rout, error_handler,
 					Tmout_min,
 					Tmout_max,
 					SRC_DIC);
-		if(Dns_dic_conn_id == -2)
+		if(dnsp->dns_dic_conn_id == -2)
 			error_handler(0, DIM_FATAL, DIMDNSUNDEF, "DIM_DNS_NODE undefined");
 		ENABLE_AST;
-	  }
-	if( Dns_dic_conn_id > 0)
+	}
+/*
+	n = request_dnss_info(servp->prev->serv_id);
+*/
+	if(dnsp->dns_dic_conn_id > 0)
 	{
 	    DISABLE_AST;
 		request_dns_info(servp->prev->serv_id);
 		ENABLE_AST;
 	}
-
-	return(Dns_dic_conn_id);
+/*
+	return n;
+*/
+	return(dnsp->dns_dic_conn_id);
 }
 
-DIC_SERVICE *locate_command( char *serv_name )
+DIC_SERVICE *locate_command( char *serv_name, dim_long dnsid )
 {
 	register DIC_SERVICE *servp;
 
 	if(!Cmnd_head)
 		return((DIC_SERVICE *)0);
-	if( (servp = (DIC_SERVICE *) dll_search( (DLL *) Cmnd_head, serv_name,
-					    (int)strlen(serv_name)+1)) )
-		return(servp);
+	if ((servp = (DIC_SERVICE *)dll_search((DLL *)Cmnd_head, serv_name,
+		(int)strlen(serv_name) + 1)))
+	{
+		if(servp->dnsid == dnsid)
+			return(servp);
+	}
 	return((DIC_SERVICE *)0);
 }
 
-DIC_SERVICE *locate_pending( char *serv_name )
+DIC_SERVICE *locate_pending( char *serv_name, dim_long dnsid )
 {
 	register DIC_SERVICE *servp;
 
 	if(!Service_pend_head)
 		return((DIC_SERVICE *)0);
-	if( (servp = (DIC_SERVICE *) dll_search( (DLL *) Service_pend_head, serv_name,
-					    (int)strlen(serv_name)+1)) )
-		return(servp);
+	if ((servp = (DIC_SERVICE *)dll_search((DLL *)Service_pend_head, serv_name,
+		(int)strlen(serv_name) + 1)))
+	{
+		if (servp->dnsid == dnsid)
+			return(servp);
+	}
 	return((DIC_SERVICE *)0);
 }
 
@@ -1234,19 +1488,25 @@ static void request_dns_info(int id)
 	int n_pend = 0;
 	int request_dns_single_info();
 	extern int open_dns();
+/*
+	DIC_DNS_CONN *dnsp;
 
 	DISABLE_AST
-    if( Dns_dic_conn_id <= 0)
+
+	if (dnsp->dns_dic_conn_id <= 0)
 	{
-		Dns_dic_conn_id = open_dns( 0, recv_dns_dic_rout, error_handler,
-					   Tmout_min,
-					   Tmout_max,
-					   SRC_DIC);
-		if(Dns_dic_conn_id == -2)
+		dnsp->dns_dic_conn_id = open_dns(0, recv_dns_dic_rout, error_handler,
+			Tmout_min,
+			Tmout_max,
+			SRC_DIC);
+		if (dnsp->dns_dic_conn_id == -2)
 			error_handler(0, DIM_FATAL, DIMDNSUNDEF, "DIM_DNS_NODE undefined");
 	}
-	if( Dns_dic_conn_id > 0)
+	if(dnsp->dns_dic_conn_id > 0)
 	{
+*/
+		DISABLE_AST
+
 		servp = Service_pend_head;
 		if(id > 0)
 		{
@@ -1278,9 +1538,11 @@ static void request_dns_info(int id)
 				return;
 			}
 		}
+/*
 	}
 	else
 	{
+*/
 		servp = Service_pend_head;
 		while( (servp = (DIC_SERVICE *) dll_get_next(
 						(DLL *) Service_pend_head,
@@ -1292,7 +1554,9 @@ static void request_dns_info(int id)
 					service_tmout( servp->serv_id );
 			}
 		}
+/*
 	}
+*/
 	ENABLE_AST
 }
 
@@ -1302,8 +1566,20 @@ int request_dns_single_info( DIC_SERVICE *servp )
 	static DIC_DNS_PACKET Dic_dns_packet;
 	static SERVICE_REQ *serv_reqp;
 	int ret = 1;
+	DIC_DNS_CONN *dnsp;
+	extern int open_dns();
 
-	if( Dns_dic_conn_id > 0)
+	dnsp = dic_find_dns(servp->dnsid);
+	if (dnsp->dns_dic_conn_id <= 0)
+	{
+		dnsp->dns_dic_conn_id = open_dns(dnsp->dnsid, recv_dns_dic_rout, error_handler,
+			Tmout_min,
+			Tmout_max,
+			SRC_DIC);
+		if (dnsp->dns_dic_conn_id == -2)
+			error_handler(0, DIM_FATAL, DIMDNSUNDEF, "DIM_DNS_NODE undefined");
+	}
+	if(dnsp->dns_dic_conn_id > 0)
 	{
 	        if(Debug_on)
 			{
@@ -1318,11 +1594,11 @@ int request_dns_single_info( DIC_SERVICE *servp )
 		serv_reqp->service_id = htovl(servp->serv_id);
 		servp->pending = WAITING_DNS_ANSWER;
 		Dic_dns_packet.size = htovl(sizeof(DIC_DNS_PACKET));
-		if(!dna_write( Dns_dic_conn_id, &Dic_dns_packet,
+		if(!dna_write(dnsp->dns_dic_conn_id, &Dic_dns_packet,
 				      sizeof(DIC_DNS_PACKET) ) )
-		  {
+		{
 		    ret = 0;
-		  }
+		}
 
 	}
 	return ret;
@@ -1347,6 +1623,7 @@ static int handle_dns_info( DNS_DIC_PACKET *packet )
 	int find_connection();
 	void move_to_bad_service();
 	void retry_bad_connection();
+	DIC_DNS_CONN *dnsp;
 
 	service_id = vtohl(packet->service_id);
 
@@ -1362,7 +1639,7 @@ static int handle_dns_info( DNS_DIC_PACKET *packet )
 			vtohl(packet->service_id));
 	}
 	node_name = packet->node_name; 
-	if(node_name[0] == -1)
+	if(node_name[0] == (char)0xFF)
 	{
 		error_handler(0, DIM_FATAL, DIMDNSREFUS, "DIM_DNS refuses connection");
 		return(0);
@@ -1377,16 +1654,18 @@ static int handle_dns_info( DNS_DIC_PACKET *packet )
 	protocol = vtohl(packet->protocol);
 	format = vtohl(packet->format);
 
-	if( Dns_dic_timr )
-		dtq_clear_entry( Dns_dic_timr );
+	dnsp = dic_find_dns(servp->dnsid);
+
+	if( dnsp->dns_dic_timr )
+		dtq_clear_entry(dnsp->dns_dic_timr );
 	if( servp->pending == DELETED ) {
-		if( Dns_dic_conn_id > 0) {
+		if(dnsp->dns_dic_conn_id > 0) {
 			dic_dns_p->size = htovl(sizeof(DIC_DNS_PACKET));
 			dic_dns_p->src_type = htovl(SRC_DIC);
 			serv_reqp = &dic_dns_p->service;
 			strcpy( serv_reqp->service_name, servp->serv_name );
 			serv_reqp->service_id = (int)htovl((unsigned)servp->serv_id | 0x80000000);
-			dna_write( Dns_dic_conn_id, dic_dns_p,
+			dna_write(dnsp->dns_dic_conn_id, dic_dns_p,
 				  sizeof(DIC_DNS_PACKET) );
 		}
 		release_service( servp );	
@@ -1398,14 +1677,14 @@ static int handle_dns_info( DNS_DIC_PACKET *packet )
 		service_tmout( servp->serv_id ); 
 		if( servp->pending == DELETED ) 
 		{
-			if( Dns_dic_conn_id > 0) 
+			if(dnsp->dns_dic_conn_id > 0)
 			{
 				dic_dns_p->size = htovl(sizeof(DIC_DNS_PACKET));
 				dic_dns_p->src_type = htovl(SRC_DIC);
 				serv_reqp = &dic_dns_p->service;
 				strcpy( serv_reqp->service_name, servp->serv_name );
 				serv_reqp->service_id = (int)htovl((unsigned)servp->serv_id | 0x80000000);
-				dna_write( Dns_dic_conn_id, dic_dns_p,
+				dna_write(dnsp->dns_dic_conn_id, dic_dns_p,
 					sizeof(DIC_DNS_PACKET) );
 			}
 			release_service( servp );
@@ -1807,7 +2086,7 @@ int end_command(DIC_SERVICE *servp, int ret)
 		}
 		else
 		{
-			aux_servp = locate_command(servp->serv_name);
+			aux_servp = locate_command(servp->serv_name, servp->dnsid);
 			if( !aux_servp ) 
 			{
 				move_to_cmnd_service( servp );
@@ -1845,7 +2124,7 @@ int send_service_command(DIC_SERVICE *servp)
 		{
 			if( servp->type == ONCE_ONLY ) 
 			{
-				if( !locate_command(servp->serv_name) ) 
+				if( !locate_command(servp->serv_name, servp->dnsid) ) 
 				{
 					move_to_cmnd_service( servp );	
 				}
@@ -1879,6 +2158,7 @@ int send_service(int conn_id, DIC_SERVICE *servp)
 	static DIC_PACKET *dic_packet;
 	static int serv_packet_size = 0;
     int type, ret;
+	char str[256];
 
 	if( !serv_packet_size ) {
 		dic_packet = (DIC_PACKET *)malloc((size_t)DIC_HEADER);
@@ -1897,10 +2177,9 @@ int send_service(int conn_id, DIC_SERVICE *servp)
 	ret = dna_write_nowait(conn_id, dic_packet, DIC_HEADER);
 	if(!ret)
 	{
-		dim_print_date_time();
-		printf(" Client Sending Service Request: Couldn't write to Conn %3d : Server %s@%s service %s\n",
+		sprintf(str, "Client Sending Service Request: Couldn't write to Conn %3d : Server %s@%s service %s\n",
 			conn_id, Net_conns[conn_id].task, Net_conns[conn_id].node, servp->serv_name);
-		fflush(stdout);
+		error_handler(0, DIM_ERROR, DIMTCPWRTMO, str);
 	}
 	return(ret);
 }
@@ -1919,6 +2198,10 @@ void do_cmnd_callback(CMNDCB_ITEM *itemp)
 /*
 	itemp = (CMNDCB_ITEM *)id_get_ptr(id, SRC_DIC);
 */
+	/*
+	dim_print_date_time_millis();
+	printf("do_cmnd_callback\n");
+	*/
 	serv_id = itemp->serv_id;
 	ret = itemp->ret_code;
 	servp = (DIC_SERVICE *)id_get_ptr(serv_id, SRC_DIC);
@@ -1946,6 +2229,7 @@ int send_command(int conn_id, DIC_SERVICE *servp)
 	register int size;
 	int ret;
 	CMNDCB_ITEM *itemp;
+	char str[256];
 
 	size = servp->fill_size;
 
@@ -2018,10 +2302,9 @@ int send_command(int conn_id, DIC_SERVICE *servp)
 */
 	if(!ret)
 	{
-		dim_print_date_time();
-		printf(" Client Sending Command: Couldn't write to Conn %3d : Server %s@%s\n",conn_id,
+		sprintf(str, "Client Sending Command: Couldn't write to Conn %3d : Server %s@%s\n", conn_id,
 			Net_conns[conn_id].task, Net_conns[conn_id].node);
-		fflush(stdout);
+		error_handler(0, DIM_ERROR, DIMTCPWRTMO, str);
 	}
 	return(ret);
 }
@@ -2062,7 +2345,9 @@ void dic_destroy(int tid)
 	register DIC_CONNECTION *dic_connp;
 	register DIC_SERVICE *servp, *auxp;
 	int found = 0;
+	DIC_DNS_CONN *dnsp;
 
+	dnsp = Default_DNS;
 	if(!Dic_conns)
 	  return;
 	for( i=0, dic_connp = Dic_conns; i<Curr_N_Conns; i++, dic_connp++ )
@@ -2088,10 +2373,10 @@ void dic_destroy(int tid)
 	}
 	if(!found)
 	  {
-	    if(Dns_dic_conn_id > 0)
+	    if(dnsp->dns_dic_conn_id > 0)
 	      {
-		dna_close( Dns_dic_conn_id );
-		Dns_dic_conn_id = 0;
+		dna_close(dnsp->dns_dic_conn_id );
+		dnsp->dns_dic_conn_id = 0;
 	      }
 	  }
 }
@@ -2125,11 +2410,14 @@ static void release_conn(int conn_id)
 	dna_close(conn_id);
 }	
 
-void dic_close_dns()
+void dic_close_dns_dns(dim_long dnsid)
 {
 	register DIC_SERVICE *servp, *auxp;
-		
-	if(Dns_dic_conn_id > 0)
+	DIC_DNS_CONN *dnsp;
+
+	dic_dns_init();
+	dnsp = dic_find_dns(dnsid);
+	if(dnsp->dns_dic_conn_id > 0)
 	{
 		if( (servp = (DIC_SERVICE *) Cmnd_head) ) 
 		{
@@ -2161,10 +2449,33 @@ void dic_close_dns()
 				servp = auxp;
 			}
 		}
-		dna_close( Dns_dic_conn_id );
-		Dns_dic_conn_id = 0;
+		dna_close(dnsp->dns_dic_conn_id );
+		dnsp->dns_dic_conn_id = 0;
 	}
 }
+
+void dic_close_dns()
+{
+	dic_close_dns_dns(0);
+}
+
+void dic_close_dnss()
+{
+	DIC_DNS_CONN *dnsp, *auxp;
+
+	dic_dns_init();
+	dnsp = (DIC_DNS_CONN *)DNS_head;
+	while ((dnsp = (DIC_DNS_CONN *)dll_get_next((DLL *)DNS_head, (DLL *)dnsp)))
+	{
+		auxp = (DIC_DNS_CONN *)dnsp->prev;
+		dic_close_dns_dns(dnsp->dnsid);
+		dll_remove((DLL *)dnsp);
+		free(dnsp);
+		dnsp = auxp;
+	}
+}
+
+
 /*
 append_service(service_info_buffer, servp)		
 char *service_info_buffer;
@@ -2328,7 +2639,7 @@ void dic_stop()
 	int dic_find_server_conns();
 
 	dtq_delete(Dic_timer_q);
-	dic_close_dns();
+	dic_close_dnss();
 	if(!dic_find_server_conns())
 		dim_stop();
 }

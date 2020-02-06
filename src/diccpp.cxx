@@ -92,10 +92,21 @@ void DimInfo::doIt()
 	DISABLE_AST
 
 //	itsTagId = id_get((void *)this, SRC_DIC);
-	itsId = dic_info_service(itsName,itsType,itsTime, 0, 0,
-//		user_routine, itsTagId, 
-		user_routine, (dim_long)this, 
-		itsNolinkBuf, itsNolinkSize);
+	if (!itsDnsId)
+	{
+		itsId = dic_info_service(itsName, itsType, itsTime, 0, 0,
+//			user_routine, itsTagId, 
+			user_routine, (dim_long)this,
+			itsNolinkBuf, itsNolinkSize);
+	}
+	else
+	{
+		itsId = dic_info_service_dns(itsDnsId, itsName, itsType, itsTime, 0, 0,
+			//			user_routine, itsTagId, 
+			user_routine, (dim_long)this,
+			itsNolinkBuf, itsNolinkSize);
+	}
+
 	ENABLE_AST
 }
 
@@ -150,7 +161,7 @@ void DimInfo::timerHandler()
 }
 
 void DimInfo::subscribe(char *name, int time, void *nolink, int nolinksize,
-	DimInfoHandler *handler)
+	DimInfoHandler *handler, dim_long dnsid)
 {
 	itsId = 0;
 	itsData = 0;
@@ -190,6 +201,7 @@ void DimInfo::subscribe(char *name, int time, void *nolink, int nolinksize,
 		itsType = ONCE_ONLY;
 		itsTime = 30;
 	}
+	itsDnsId = dnsid;
 	doIt();
 }
 
@@ -229,15 +241,25 @@ void DimStampedInfo::doIt()
 	dim_init();
 	DISABLE_AST
 //	itsTagId = id_get((void *)this, SRC_DIC);
-	itsId = dic_info_service_stamped(itsName,itsType,itsTime, 0, 0,
-//		user_routine, itsTagId, 
-		user_routine, (dim_long)this, 
-		itsNolinkBuf, itsNolinkSize);
+	if (!itsDnsId)
+	{
+		itsId = dic_info_service_stamped(itsName, itsType, itsTime, 0, 0,
+//			user_routine, itsTagId, 
+			user_routine, (dim_long)this,
+			itsNolinkBuf, itsNolinkSize);
+	}
+	else
+	{
+		itsId = dic_info_service_stamped_dns(itsDnsId, itsName, itsType, itsTime, 0, 0,
+//			user_routine, itsTagId, 
+			user_routine, (dim_long)this,
+			itsNolinkBuf, itsNolinkSize);
+	}
 	ENABLE_AST
 }
 
 void DimStampedInfo::subscribe(char *name, int time, void *nolink, int nolinksize,
-	DimInfoHandler *handler)
+	DimInfoHandler *handler, dim_long dnsid)
 {
 	itsId = 0;
 	itsData = 0;
@@ -277,6 +299,7 @@ void DimStampedInfo::subscribe(char *name, int time, void *nolink, int nolinksiz
 		itsType = ONCE_ONLY;
 		itsTime = 30;
 	}
+	itsDnsId = dnsid;
 	doIt();
 }
 
@@ -289,15 +312,25 @@ void DimUpdatedInfo::doIt()
 	dim_init();
 	DISABLE_AST
 //	itsTagId = id_get((void *)this, SRC_DIC);
-	itsId = dic_info_service_stamped(itsName,itsType,itsTime, 0, 0,
-//		user_routine, itsTagId, 
-		user_routine, (dim_long)this, 
-		itsNolinkBuf, itsNolinkSize);
+	if (!itsDnsId)
+	{
+		itsId = dic_info_service_stamped(itsName, itsType, itsTime, 0, 0,
+//			user_routine, itsTagId, 
+			user_routine, (dim_long)this,
+			itsNolinkBuf, itsNolinkSize);
+	}
+	else
+	{
+		itsId = dic_info_service_stamped_dns(itsDnsId, itsName, itsType, itsTime, 0, 0,
+//			user_routine, itsTagId, 
+			user_routine, (dim_long)this,
+			itsNolinkBuf, itsNolinkSize);
+	}
 	ENABLE_AST
 }
 
 void DimUpdatedInfo::subscribe(char *name, int time, void *nolink, int nolinksize,
-	DimInfoHandler *handler)
+	DimInfoHandler *handler, dim_long dnsid)
 {
 	itsId = 0;
 	itsData = 0;
@@ -332,6 +365,7 @@ void DimUpdatedInfo::subscribe(char *name, int time, void *nolink, int nolinksiz
 		itsType = UPDATE;
 		itsTime = time;
 	}
+	itsDnsId = dnsid;
 	doIt();
 }
 
@@ -384,7 +418,7 @@ static void data_user_routine(void *tagp, void *bufp, int *size)
 }
 }
 
-void DimCurrentInfo::subscribe(char *name, int time, void *nolink, int nolinksize)
+void DimCurrentInfo::subscribe(char *name, int time, void *nolink, int nolinksize, dim_long dnsid)
 {
 
 	int timeout;
@@ -419,10 +453,21 @@ void DimCurrentInfo::subscribe(char *name, int time, void *nolink, int nolinksiz
 		timeout = time;
 	wakeUp = 0;
 //	itsTagId = id_get((void *)this, SRC_DIC);
-	dic_info_service(itsName,ONCE_ONLY,timeout, 0, 0,
-//		data_user_routine, itsTagId, 
-		data_user_routine, (dim_long)this, 
-		itsNolinkBuf, itsNolinkSize);
+	itsDnsId = dnsid;
+	if (!itsDnsId)
+	{
+		dic_info_service(itsName, ONCE_ONLY, timeout, 0, 0,
+			//			data_user_routine, itsTagId, 
+			data_user_routine, (dim_long)this,
+			itsNolinkBuf, itsNolinkSize);
+	}
+	else
+	{
+		dic_info_service_dns(itsDnsId, itsName, ONCE_ONLY, timeout, 0, 0,
+			//			data_user_routine, itsTagId, 
+			data_user_routine, (dim_long)this,
+			itsNolinkBuf, itsNolinkSize);
+	}
 }
 
 DimCurrentInfo::~DimCurrentInfo()
@@ -472,6 +517,8 @@ static void cmnd_done(void *tagp, int *result)
 	t = *(DimCmnd **)tagp;
 	t->result = *result;
 	t->wakeUp = 1;
+//	dim_print_date_time_millis();
+//	printf("Cmnd Waking up\n");
 #ifdef __VMS
 	sys$wake(0,0);
 #endif
@@ -496,6 +543,8 @@ int DimCmnd::send(char *name, void *data, int datasize)
 		dic_cmnd_callback(name, data, datasize, 
 //			cmnd_done, id);
 			cmnd_done, (dim_long)this);
+//		dim_print_date_time_millis();
+//		printf("Cmnd Waiting\n");
 		while(!wakeUp)
 		{
 #ifdef __VMS
@@ -505,6 +554,40 @@ int DimCmnd::send(char *name, void *data, int datasize)
 #endif
 		}
 //		id_free(id, SRC_DIC);
+//		dim_print_date_time_millis();
+//		printf("Cmnd Woke up\n");
+		return(result);
+	}
+}
+
+int DimCmnd::send(dim_long dnsid, char *name, void *data, int datasize)
+{
+	//	int id;
+	if (DimCore::inCallback)
+	{
+		dic_cmnd_service_dns(dnsid, name, data, datasize);
+		return(1);
+	}
+	else
+	{
+		wakeUp = 0;
+		//		id = id_get((void *)this, SRC_DIC);
+		dic_cmnd_callback_dns(dnsid, name, data, datasize,
+			//			cmnd_done, id);
+			cmnd_done, (dim_long)this);
+		//		dim_print_date_time_millis();
+		//		printf("Cmnd Waiting\n");
+		while (!wakeUp)
+		{
+#ifdef __VMS
+			sys$hiber();
+#else
+			dim_wait();
+#endif
+		}
+		//		id_free(id, SRC_DIC);
+		//		dim_print_date_time_millis();
+		//		printf("Cmnd Woke up\n");
 		return(result);
 	}
 }
@@ -512,6 +595,11 @@ int DimCmnd::send(char *name, void *data, int datasize)
 void DimCmnd::sendNB(char *name, void *data, int datasize) 
 {
 	dic_cmnd_service(name, data, datasize);
+}
+
+void DimCmnd::sendNB(dim_long dnsid, char *name, void *data, int datasize)
+{
+	dic_cmnd_service_dns(dnsid, name, data, datasize);
 }
 
 extern "C" {
@@ -585,10 +673,13 @@ static void rpc_user_routine(void *tagp, void *bufp, int *sizep)
 		if(t->itsWaiting != 2)
 			t->itsWaiting = 0;
 	}
+//	dim_print_date_time_millis();
+//	printf("Waking up\n");
 #ifdef __VMS
 	sys$wake(0,0);
 #endif
 #ifdef WIN32
+	//printf("DIM RPC: Stopped Timer, Data Received for %s\n", t->getName());
 	wake_up();
 #endif
 }
@@ -680,7 +771,7 @@ void DimRpcInfo::rpcInfoHandler()
 }
 
 void DimRpcInfo::subscribe(char *name, void *data, int size,
-	void *nolink, int nolinksize, int timeout)
+	void *nolink, int nolinksize, int timeout, dim_long dnsid)
 {
 
 	itsId = 0;
@@ -709,6 +800,7 @@ void DimRpcInfo::subscribe(char *name, void *data, int size,
 	strcpy(itsNameIn,name);
 	strcat(itsNameIn,(char *)"/RpcOut");
 	itsTimeout = timeout;
+	itsDnsId = dnsid;
 	dim_init();
 	{
 		if(!itsId)
@@ -717,12 +809,23 @@ void DimRpcInfo::subscribe(char *name, void *data, int size,
 
 //			itsId = dic_info_service_stamped(itsNameIn,MONIT_ONLY,itsTimeout, 
 			itsConnected = 0;
-//			itsId = dic_info_service_stamped(itsNameIn,MONITORED,itsTimeout, 
-			itsId = dic_info_service_stamped(itsNameIn,MONIT_FIRST,itsTimeout, 
-				0, 0,
-//				rpc_user_routine, itsTagId, 
-				rpc_user_routine, (dim_long)itsHandler, 
-				itsNolinkBuf, itsNolinkSize);
+			if (!itsDnsId)
+			{
+//				itsId = dic_info_service_stamped(itsNameIn,MONITORED,itsTimeout, 
+				itsId = dic_info_service_stamped(itsNameIn, MONIT_FIRST, itsTimeout,
+					0, 0,
+					//				rpc_user_routine, itsTagId, 
+					rpc_user_routine, (dim_long)itsHandler,
+					itsNolinkBuf, itsNolinkSize);
+			}
+			else
+			{
+				itsId = dic_info_service_stamped_dns(itsDnsId, itsNameIn, MONIT_FIRST, itsTimeout,
+					0, 0,
+					//				rpc_user_routine, itsTagId, 
+					rpc_user_routine, (dim_long)itsHandler,
+					itsNolinkBuf, itsNolinkSize);
+			}
 //			dim_usleep(200000);
 			itsInit = 1;
 		}
@@ -764,8 +867,10 @@ void DimRpcInfo::doIt(void *data, int size)
 		start(itsTimeout);
 //dim_print_date_time();
 //printf("DIM RPC: Started Timer for %s - %d secs\n", itsName, itsTimeout);
-	ret = DimClient::sendCommand(itsNameOut, itsDataOut, size); 
-	if(!ret)
+	ret = DimClient::sendCommand(itsDnsId, itsNameOut, itsDataOut, size); 
+//dim_print_date_time_millis();
+//printf("RPC sent\n");
+	if (!ret)
 	{
 		if(itsTimeout)
 			stop();
@@ -785,6 +890,8 @@ void DimRpcInfo::doIt(void *data, int size)
 
 void *DimRpcInfo::getData()
 {
+//	dim_print_date_time_millis();
+//	printf("Waiting...\n");
 	while(!wakeUp)
 	{
 #ifdef __VMS
@@ -793,7 +900,9 @@ void *DimRpcInfo::getData()
 		dim_wait();
 #endif
 	}
-/*
+//	dim_print_date_time_millis();
+//	printf("Woke up\n");
+	/*
 	if(DimClient::getNoDataCopy() == 1)
 	{
 		if(!DimCore::inCallback)
@@ -832,6 +941,21 @@ DimBrowser::DimBrowser()
 	currIndex = -1;
 	none = 0;
 	browserRpc = 0;
+	itsDnsId = 0;
+}
+
+DimBrowser::DimBrowser(dim_long dnsid)
+{
+	int i;
+	for (i = 0; i<5; i++)
+	{
+		itsData[i] = 0;
+		itsData[i] = 0;
+	}
+	currIndex = -1;
+	none = 0;
+	browserRpc = 0;
+	itsDnsId = dnsid;
 }
 
 DimBrowser::~DimBrowser()
@@ -845,104 +969,175 @@ DimBrowser::~DimBrowser()
 	if(browserRpc)
 		delete browserRpc;
 }
-
-int DimBrowser::getServices(const char * serviceName) 
+/*
+int DimBrowser::getServices(dim_long dnsid, const char * serviceName) 
 {
-	return getServices(serviceName, 0);
+	return doGetServices(serviceName, 0, dnsid);
+}
+
+int DimBrowser::getServices(dim_long dnsid, const char * serviceName, int timeout)
+{
+	return doGetServices(serviceName, timeout, dnsid);
+}
+*/
+int DimBrowser::getServices(const char * serviceName)
+{
+	return doGetServices(serviceName, 0);
 }
 
 int DimBrowser::getServices(const char * serviceName, int timeout) 
 {
+	return doGetServices(serviceName, timeout);
+}
+
+int DimBrowser::doGetServices(const char * serviceName, int timeout)
+{
 	char *str;
 
-//	DimRpcInfo rpc((char *)"DIS_DNS/SERVICE_INFO",(char *)"\0");
-//	rpc.setData((char *)serviceName);
-//	str = rpc.getString();
-	if(!browserRpc)
-		browserRpc = new DimRpcInfo((char *)"DIS_DNS/SERVICE_INFO",timeout,(char *)"\0");
+	//	DimRpcInfo rpc((char *)"DIS_DNS/SERVICE_INFO",(char *)"\0");
+	//	rpc.setData((char *)serviceName);
+	//	str = rpc.getString();
+	dim_long dnsid = itsDnsId;
+
+	if (!browserRpc)
+	{
+		if(!dnsid)
+			browserRpc = new DimRpcInfo((char *)"DIS_DNS/SERVICE_INFO", timeout, (char *)"\0");
+		else
+			browserRpc = new DimRpcInfo(dnsid, (char *)"DIS_DNS/SERVICE_INFO", timeout, (char *)"\0");
+	}
 	browserRpc->setData((char *)serviceName);
-	str = browserRpc->getString();	
-	if(itsData[0])
+	str = browserRpc->getString();
+	if (itsData[0])
 		delete itsData[0];
-	itsData[0] = new TokenString(str,(char *)"|\n"); 
+	itsData[0] = new TokenString(str, (char *)"|\n");
 	currIndex = 0;
-	if(!itsData[0]->getNTokens())
+	if (!itsData[0]->getNTokens())
 		return(0);
-	return( itsData[0]->getNTokens((char *)"\n") + 1); 
+	return(itsData[0]->getNTokens((char *)"\n") + 1);
 }
-
-int DimBrowser::getServers() 
+/*
+int DimBrowser::getServers(dim_long dnsid)
 {
-	return getServers(0);
+	return doGetServers(0, dnsid);
 }
 
-int DimBrowser::getServers(int timeout) 
+int DimBrowser::getServers(dim_long dnsid, int timeout)
+{
+	return doGetServers(timeout, dnsid);
+}
+*/
+int DimBrowser::getServers()
+{
+	return doGetServers(0);
+}
+
+int DimBrowser::getServers(int timeout)
+{
+	return doGetServers(timeout);
+}
+
+int DimBrowser::doGetServers(int timeout)
 {
 	char *str, *pid_str;
 	int size, totsize;
-	DimCurrentInfo srv((char *)"DIS_DNS/SERVER_LIST", timeout, (char *)"\0");
+	dim_long dnsid = itsDnsId;
+	DimCurrentInfo srv(dnsid, (char *)"DIS_DNS/SERVER_LIST", timeout, (char *)"\0");
+
 	str = srv.getString();
-	size = (int)strlen(str)+1;
+	size = (int)strlen(str) + 1;
 	totsize = srv.getSize();
 
-	if(itsData[1])
+	if (itsData[1])
 		delete itsData[1];
-	itsData[1] = new TokenString(str,(char *)"|@\n"); 
+	itsData[1] = new TokenString(str, (char *)"|@\n");
 	currIndex = 1;
-	if(!str[0])
+	if (!str[0])
 		return(0);
-	if(totsize > size)
+	if (totsize > size)
 	{
 		pid_str = str + (int)strlen(str) + 1;
-		if(itsData[4])
+		if (itsData[4])
 			delete itsData[4];
-		itsData[4] = new TokenString(pid_str,(char *)"|"); 
+		itsData[4] = new TokenString(pid_str, (char *)"|");
 	}
-	return(itsData[1]->getNTokens((char *)"|") +1); 
+	return(itsData[1]->getNTokens((char *)"|") + 1);
+}
+/*
+int DimBrowser::getServerServices(dim_long dnsid, const char *serverName)
+{
+	return doGetServerServices(serverName, 0, dnsid);
 }
 
+int DimBrowser::getServerServices(dim_long dnsid, const char *serverName, int timeout)
+{
+	return doGetServerServices(serverName, timeout, dnsid);
+}
+*/
 int DimBrowser::getServerServices(const char *serverName) 
 {
-	return getServerServices(serverName, 0);
+	return doGetServerServices(serverName, 0);
 }
 
 int DimBrowser::getServerServices(const char *serverName, int timeout) 
 {
-	char *str;
-	char *name = new char[(int)strlen(serverName) + 20];
-	strcpy(name,(char *)serverName);
-	strcat(name,(char *)"/SERVICE_LIST");
-	DimCurrentInfo srv(name, timeout, (char *)"\0");
-	delete[] name;
-	str = srv.getString();	
-	if(itsData[2])
-		delete itsData[2];
-	itsData[2] = new TokenString(str,(char *)"|\n"); 
-	currIndex = 2;
-	if(!itsData[2]->getNTokens())
-		return(0);
-	return(itsData[2]->getNTokens((char *)"\n") + 1); 
+	return doGetServerServices(serverName, timeout);
 }
 
+int DimBrowser::doGetServerServices(const char *serverName, int timeout)
+{
+	char *str;
+	char *name = new char[(int)strlen(serverName) + 20];
+	strcpy(name, (char *)serverName);
+	strcat(name, (char *)"/SERVICE_LIST");
+	dim_long dnsid = itsDnsId;
+	DimCurrentInfo srv(dnsid, name, timeout, (char *)"\0");
+	delete[] name;
+	str = srv.getString();
+	if (itsData[2])
+		delete itsData[2];
+	itsData[2] = new TokenString(str, (char *)"|\n");
+	currIndex = 2;
+	if (!itsData[2]->getNTokens())
+		return(0);
+	return(itsData[2]->getNTokens((char *)"\n") + 1);
+}
+/*
+int DimBrowser::getServerClients(dim_long dnsid, const char *serverName)
+{
+	return doGetServerClients(serverName, 0, dnsid);
+}
+
+int DimBrowser::getServerClients(dim_long dnsid, const char *serverName, int timeout)
+{
+	return doGetServerClients(serverName, timeout, dnsid);
+}
+*/
 int DimBrowser::getServerClients(const char *serverName)
 {
-	return getServerClients(serverName, 0);
+	return doGetServerClients(serverName, 0);
 }
 
 int DimBrowser::getServerClients(const char *serverName, int timeout) 
 {
+	return doGetServerClients(serverName, timeout);
+}
+
+int DimBrowser::doGetServerClients(const char *serverName, int timeout)
+{
 	char *str;
 	char *name = new char[(int)strlen(serverName) + 20];
-	strcpy(name,(char *)serverName);
-	strcat(name,(char *)"/CLIENT_LIST");
-	DimCurrentInfo srv(name, timeout, (char *)"\0");
+	strcpy(name, (char *)serverName);
+	strcat(name, (char *)"/CLIENT_LIST");
+	dim_long dnsid = itsDnsId;
+	DimCurrentInfo srv(dnsid, name, timeout, (char *)"\0");
 	delete[] name;
-	str = srv.getString();	
-	if(itsData[3])
+	str = srv.getString();
+	if (itsData[3])
 		delete itsData[3];
-	itsData[3] = new TokenString(str,(char *)"|@\n"); 
+	itsData[3] = new TokenString(str, (char *)"|@\n");
 	currIndex = 3;
-	return(itsData[3]->getNTokens((char *)"@") ); 
+	return(itsData[3]->getNTokens((char *)"@"));
 }
 	
 int DimBrowser::getNextService(char *&service, char *&format)
@@ -986,8 +1181,11 @@ int DimBrowser::getNextServer(char *&server, char *&node)
 	server = node = &none;
 	ret = itsData[1]->getToken(currToken);
 	if(!ret) return 0;
-	server = currToken;
-	ret = itsData[1]->getToken(currToken);
+	if(!itsData[1]->cmpToken((char *)"@"))
+	{
+		server = currToken;
+		ret = itsData[1]->getToken(currToken);
+	}
 	if(!itsData[1]->cmpToken((char *)"@"))
 		return 0;
 	while(1)
@@ -1179,6 +1377,103 @@ void DimClient::sendCommandNB(const char *name, void *data, int datasize)
 	a.sendNB((char *)name, data, datasize);
 }
 
+
+
+
+
+
+
+int DimClient::sendCommand(dim_long dnsid, const char *name, int data)
+{
+	DimCmnd a;
+	return a.send(dnsid, (char *)name, &data, sizeof(int));
+}
+
+int DimClient::sendCommand(dim_long dnsid, const char *name, float data)
+{
+	DimCmnd a;
+	return a.send(dnsid, (char *)name, &data, sizeof(float));
+}
+
+int DimClient::sendCommand(dim_long dnsid, const char *name, double data)
+{
+	DimCmnd a;
+	return a.send(dnsid, (char *)name, &data, sizeof(double));
+}
+
+int DimClient::sendCommand(dim_long dnsid, const char *name, longlong data)
+{
+	DimCmnd a;
+	return a.send(dnsid, (char *)name, &data, sizeof(longlong));
+}
+
+int DimClient::sendCommand(dim_long dnsid, const char *name, short data)
+{
+	DimCmnd a;
+	return a.send(dnsid, (char *)name, &data, sizeof(short));
+}
+
+int DimClient::sendCommand(dim_long dnsid, const char *name, const char *data)
+{
+	DimCmnd a;
+	return a.send(dnsid, (char *)name, (char *)data, (int)strlen(data) + 1);
+}
+
+int DimClient::sendCommand(dim_long dnsid, const char *name, void *data, int datasize)
+{
+	DimCmnd a;
+	return a.send(dnsid, (char *)name, data, datasize);
+}
+
+void DimClient::sendCommandNB(dim_long dnsid, const char *name, int data)
+{
+	DimCmnd a;
+	a.sendNB(dnsid, (char *)name, &data, sizeof(int));
+}
+
+void DimClient::sendCommandNB(dim_long dnsid, const char *name, float data)
+{
+	DimCmnd a;
+	a.sendNB(dnsid, (char *)name, &data, sizeof(float));
+}
+
+void DimClient::sendCommandNB(dim_long dnsid, const char *name, double data)
+{
+	DimCmnd a;
+	a.sendNB(dnsid, (char *)name, &data, sizeof(double));
+}
+
+void DimClient::sendCommandNB(dim_long dnsid, const char *name, longlong data)
+{
+	DimCmnd a;
+	a.sendNB(dnsid, (char *)name, &data, sizeof(longlong));
+}
+
+void DimClient::sendCommandNB(dim_long dnsid, const char *name, short data)
+{
+	DimCmnd a;
+	a.sendNB(dnsid, (char *)name, &data, sizeof(short));
+}
+
+void DimClient::sendCommandNB(dim_long dnsid, const char *name, char *data)
+{
+	DimCmnd a;
+	a.sendNB(dnsid, (char *)name, data, (int)strlen(data) + 1);
+}
+
+void DimClient::sendCommandNB(dim_long dnsid, const char *name, void *data, int datasize)
+{
+	DimCmnd a;
+	a.sendNB(dnsid, (char *)name, data, datasize);
+}
+
+
+
+
+
+
+
+
 int DimClient::setExitHandler(const char *srvName)
 {
 	DimCmnd a;
@@ -1231,6 +1526,11 @@ char *DimClient::getDnsNode()
 int DimClient::getDnsPort() 
 {
 	return dic_get_dns_port();
+}
+
+dim_long DimClient::addDns(const char *node, int port)
+{
+	return dic_add_dns((char *)node, port);
 }
 
 void DimClient::setNoDataCopy()

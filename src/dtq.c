@@ -93,13 +93,15 @@ int dim_dtq_init(int thr_flag)
 struct sigaction sig_info;
 sigset_t set;
 int ret = 0;
+int dim_usleep_init();
 
 /*
 	pid = getpid();
 */
 	if( !sigvec_done) 
 	{
-	    Inside_ast = 0;
+		dim_usleep_init();
+		Inside_ast = 0;
 	    Alarm_runs = 0;
 	    DIM_last_time = 0;
 /*
@@ -159,8 +161,10 @@ int dim_dtq_init(int thr_flag)
 {
 	int tid = 1;
 	void create_alrm_thread(void);
+	int dim_usleep_init();
 
 	if( !sigvec_done ) {
+		dim_usleep_init();
 		Inside_ast = 0;
 	    Alarm_runs = 0;
 	    DIM_last_time = 0;
@@ -199,6 +203,7 @@ int dim_dtq_init(int thr_flag)
 
 void dim_dtq_stop()
 {
+int dim_usleep_close();
 /*
 	int i;
 	for(i = 0; i < MAX_TIMER_QUEUES + 2; i++)
@@ -218,6 +223,7 @@ void dim_dtq_stop()
 		free((TIMR_ENT *)timer_queues[WRITE_QUEUE].queue_head);
 		timer_queues[WRITE_QUEUE].queue_head = 0;
 	}
+	dim_usleep_close();
 	sigvec_done = 0;
 }
 
@@ -290,20 +296,181 @@ static int my_alarm(int secs)
 #endif
 }
 
+#ifdef WIN32
+#define ioctl ioctlsocket
+
+#define closesock myclosesocket
+/*
+#define EINTR WSAEINTR
+#define EADDRNOTAVAIL WSAEADDRNOTAVAIL
+#define EWOULDBLOCK WSAEWOULDBLOCK
+#define EINPROGRESS WSAEINPROGRESS
+#define ECONNREFUSED WSAECONNREFUSED
+#define ETIMEDOUT WSAETIMEDOUT
+#define HOST_NOT_FOUND	WSAHOST_NOT_FOUND
+#define NO_DATA	WSANO_DATA
+*/
+#else
+#include <errno.h>
+#define closesock(s) close(s)
+#endif
+
+#define MY_FD_ZERO(set)			FD_ZERO(set)
+#define MY_FD_SET(fd, set)		FD_SET(fd, set)
+#define MY_FD_CLR(fd, set)		FD_CLR(fd, set)
+#define MY_FD_ISSET(fd, set)	FD_ISSET(fd, set)
+#ifdef WIN32
+static struct sockaddr_in DIM_sockname;
+static int DIM_IO_valid = 0;
+#else
+static int DIM_IO_valid = 1;
+#endif
+static int DIM_IO_Done = 0;
+static int DIM_IO_path[2] = { -1, -1 };
+
+int dim_usleep_init()
+{
+#ifdef WIN32
+	int addr, flags = 1;
+#endif
+
+#ifdef WIN32
+	init_sock();
+	if (DIM_IO_path[0] == -1)
+	{
+		if ((DIM_IO_path[0] = (int)socket(AF_INET, SOCK_STREAM, 0)) == -1)
+		{
+			perror("socket");
+			return(0);
+		}
+
+		DIM_sockname.sin_family = PF_INET;
+		addr = 0;
+		DIM_sockname.sin_addr = *((struct in_addr *) &addr);
+		DIM_sockname.sin_port = htons((unsigned short)2000);
+		ioctl(DIM_IO_path[0], FIONBIO, &flags);
+		DIM_IO_valid = 1;
+	}
+#else
+	if (DIM_IO_path[0] == -1)
+	{
+		pipe(DIM_IO_path);
+	}
+#endif
+	return 0;
+}
+
+int dim_usleep_close()
+{
+#ifdef WIN32
+	closesock(DIM_IO_path[0]);
+#else
+	close(DIM_IO_path[0]);
+	close(DIM_IO_path[1]);
+#endif
+	DIM_IO_path[0] = -1;
+	DIM_IO_path[1] = -1;
+	DIM_IO_Done = 0;
+	return 0;
+}
+
+int dim_usleep_stop()
+{
+	int flags = 1;
+#ifdef WIN32
+	int ret = 1;
+	DIM_IO_valid = 0;
+	closesock(DIM_IO_path[0]);
+	DIM_IO_path[0] = -1;
+	if ((DIM_IO_path[0] = (int)socket(AF_INET, SOCK_STREAM, 0)) == -1)
+	{
+		perror("socket");
+		return 0;
+	}
+	ret = ioctl(DIM_IO_path[0], FIONBIO, &flags);
+	if (ret != 0)
+	{
+		perror("ioctlsocket");
+	}
+	DIM_IO_valid = 1;
+#else
+	if (DIM_IO_path[1] != -1)
+	{
+		if (!DIM_IO_Done)
+		{
+			DIM_IO_Done = 1;
+			write(DIM_IO_path[1], &flags, 4);
+		}
+	}
+#endif
+	return 1;
+}
+
+void dim_usleep(int usecs)
+{
+	int ret, code, eintrcode;
+	fd_set	rfds, efds, *pfds;
+	struct timeval timeout;
+#ifndef WIN32
+	int data;
+#endif
+
+	while (!DIM_IO_valid)
+		usleep(100);
+	timeout.tv_sec = 0;
+	timeout.tv_usec = usecs;
+	MY_FD_ZERO(&efds);
+	MY_FD_ZERO(&rfds);
+#ifdef WIN32
+	pfds = &efds;
+#else
+	pfds = &rfds;
+#endif
+	if (pfds){} /* to avoid a warning */
+	MY_FD_SET( DIM_IO_path[0], pfds );
+	ret = select(FD_SETSIZE, &rfds, NULL, &efds, &timeout);
+	if(ret < 0)
+	{
+#ifdef WIN32
+		code = WSAGetLastError();
+		eintrcode = WSAEINTR;
+#else
+		code = errno;
+		eintrcode = EINTR;
+#endif
+		if (code != eintrcode)
+		{
+			dim_print_date_time();
+			printf("dtq: select returned %d, errno %d\n", ret, code);
+		}
+	}
+	else if(ret > 0)
+	{
+		if(MY_FD_ISSET(DIM_IO_path[0], pfds) )
+		{
+#ifndef WIN32
+			read(DIM_IO_path[0], &data, 4);
+			DIM_IO_Done = 0;
+#endif
+		}
+		MY_FD_CLR((unsigned)DIM_IO_path[0], pfds);
+	}
+}
+/*
 void dim_usleep(int usecs)
 {
 
-#ifndef WIN32
+//#ifndef WIN32
 	struct timeval timeout;
 
 	timeout.tv_sec = 0;
 	timeout.tv_usec = usecs;
 	select(FD_SETSIZE, NULL, NULL, NULL, &timeout);
-#else
-	usleep(usecs);
-#endif
+//#else
+//	usleep(usecs);
+//#endif
 }
-
+*/
 int dtq_task(void *dummy)
 {
 int deltat;
@@ -332,7 +499,11 @@ static int to_go;
 		}
 		else if(DIM_time_left > 0)
 		{
+//			dim_print_date_time_millis();
+//			printf("Sleeping 100000\n");
 			dim_usleep(100000);
+//			dim_print_date_time_millis();
+//			printf("Sleeping out\n");
 			deltat = get_elapsed_time();
 			DIM_time_left = to_go - deltat;
 			if(DIM_time_left <= 0)
@@ -345,7 +516,11 @@ static int to_go;
 		}
 		else
 		{
+//			dim_print_date_time_millis();
+//			printf("Sleeping 1000\n");
 			dim_usleep(1000);
+//			dim_print_date_time_millis();
+//			printf("Sleeping out\n");
 		}
 	}
 }
@@ -401,6 +576,7 @@ TIMR_ENT *dtq_add_entry(int queue_id, int time, void (*user_routine)(), dim_long
 	TIMR_ENT *new_entry, *queue_head, *auxp, *prevp;
 	int next_time, min_time = 100000;
 	int time_left, deltat = 0;
+	int dim_usleep_stop();
 
 	DISABLE_AST 
 
@@ -421,7 +597,14 @@ TIMR_ENT *dtq_add_entry(int queue_id, int time, void (*user_routine)(), dim_long
 					next_time = min_time;
 			}
 			else
+			{
+/*
+				dim_print_date_time_millis();
+				printf("Stopping timer\n");
+*/
+				dim_usleep_stop();
 				my_alarm(next_time);
+			}
 	    }
 		else
 		{

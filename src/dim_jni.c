@@ -442,7 +442,7 @@ jint send_data
   jobject callback_param;
   jobject theSendSynchronizer;
   
-  extern int request_command(char *, void *, int , void (*)(), dim_long, int);
+  extern int request_command(char *, void *, int , void (*)(), dim_long, int, dim_long);
 
   const char* cmnd = (*env)->GetStringUTFChars(env, name, 0);
 
@@ -470,7 +470,7 @@ jint send_data
   }
 
   // Send the request
-  ret = request_command((char *)cmnd, data_address, data_size, callback_funct, (dim_long)callback_param, stamped);
+  ret = request_command((char *)cmnd, data_address, data_size, callback_funct, (dim_long)callback_param, stamped, 0);
   DBGx(dim_Dbg_SEND_NATIVE) printf("DimJNI: Client.Send(%s,(%s) 0x%x) returns %d \n", cmnd, send_data_format, * (int*) data_address, ret);
 
   // release the String
@@ -985,7 +985,7 @@ JNIEXPORT jint JNICALL Java_dim_Client_infoService
   jobject theReceiveSynchronizer;
   const char* info = (*env)->GetStringUTFChars(env, name, 0);
   extern unsigned request_service(char *, int, int , void *, int , void (*)(),
-				    dim_long, void *, int, int);
+				    dim_long, void *, int, int, dim_long);
 
 //  DBGe(dim_Dbg_INFO_SERVICE); /* trap only, we report on exit */
 
@@ -1008,7 +1008,7 @@ JNIEXPORT jint JNICALL Java_dim_Client_infoService
 	  callback_function = &info_service_callback; //TODO who should do the cleanup?
 
 
-  ret = (jint)request_service((char *)info, service_type, timeout, 0, 0, callback_function, (dim_long)callback_param, &no_link, 0, stamped);
+  ret = (jint)request_service((char *)info, service_type, timeout, 0, 0, callback_function, (dim_long)callback_param, &no_link, 0, stamped, 0);
   DBGx(dim_Dbg_INFO_SERVICE) printf("DimJNI: client infoService(%s, DataDecoder@0x%08lx, mode=%d, timeout=%d ) returns %d\n", info, (dim_long)theNativeDataDecoder, mode, timeout, ret);
   (*env)->ReleaseStringUTFChars(env, name, info);
 
@@ -1053,7 +1053,7 @@ JNIEXPORT void JNICALL Java_dim_DimTimer_stop
   (JNIEnv *env, jclass This, jlong aDimTimer)
 {
    jobject callback_param;
-   int ret;
+//   int ret;
  
    if(env){}
    if(This){}
@@ -1061,7 +1061,7 @@ JNIEXPORT void JNICALL Java_dim_DimTimer_stop
    callback_param = (jobject) aDimTimer;
 
 //printf("Stopping timer %08x %08X\n", callback_param, aDimTimer);
-  ret = dtq_stop_timer((dim_long)callback_param);
+  dtq_stop_timer((dim_long)callback_param);
  //printf("ret = %d\n", ret);
 
   return;

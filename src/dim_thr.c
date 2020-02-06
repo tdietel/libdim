@@ -735,7 +735,12 @@ int dim_set_scheduler_class(int pclass)
 		p = HIGH_PRIORITY_CLASS;
 	else if(pclass == 2)
 		p = REALTIME_PRIORITY_CLASS;
+/*added by dietrich beck, GSI*/
+#ifdef PHARLAP
+	ret = 1;
+#else
 	ret = SetPriorityClass(hProc, p);
+#endif
 	if(ret)
 	  return 1;
 	ret = GetLastError();
@@ -754,8 +759,13 @@ int dim_get_scheduler_class(int *pclass)
 #ifndef PXI
 	hProc = GetCurrentProcess();
 
+/*added by dietrich beck, GSI*/
+#ifdef PHARLAP
+	ret = NORMAL_PRIORITY_CLASS;
+#else
 	ret = GetPriorityClass(hProc);
-	if(ret == 0)
+#endif
+	if (ret == 0)
 	  return 0;
 	if(ret == IDLE_PRIORITY_CLASS)
 		*pclass = -1;

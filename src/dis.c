@@ -177,6 +177,10 @@ _DIM_PROTO( SERVICE *dis_hash_service_get_next, (int *start, SERVICE *prev, int 
 _DIM_PROTO( static unsigned do_dis_add_service_dns, (char *name, char *type, void *address, int size, 
 								   void (*user_routine)(), dim_long tag, dim_long dnsid ) );
 _DIM_PROTO( static DIS_DNS_CONN *create_dns, (dim_long dnsid) );
+/*
+_DIM_PROTO( int do_dis_remove_service, (unsigned service_id, int do_stop_serving, void **dnsp ) );
+_DIM_PROTO( void do_dis_stop_serving_dns, (DIS_DNS_CONN *dnsp ) );
+*/
 
 void dis_set_debug_on()
 {
@@ -222,6 +226,7 @@ void dis_init()
 	int dis_hash_service_init();
 	void dis_dns_init();
 
+	dim_init();
 	dis_dns_init();
 	{
 	DISABLE_AST
@@ -322,13 +327,6 @@ static unsigned do_dis_add_service_dns( char *name, char *type, void *address, i
 	return((unsigned)service_id);
 }
 
-static unsigned do_dis_add_service( char *name, char *type, void *address, int size, 
-								   void (*user_routine)(), dim_long tag )
-{
-	return do_dis_add_service_dns( name, type, address, size, 
-								   user_routine, tag, 0 );
-}
-
 #ifdef VxWorks
 void dis_destroy(int tid)
 {
@@ -377,7 +375,7 @@ unsigned dis_add_service( char *name, char *type, void *address, int size,
 /*
 	DISABLE_AST
 */
-	ret = do_dis_add_service( name, type, address, size, user_routine, tag);
+	ret = do_dis_add_service_dns( name, type, address, size, user_routine, tag, 0);
 #ifdef VxWorks
 	servp = (SERVICE *)id_get_ptr(ret, SRC_DIS);
 	servp->tid = taskIdSelf();
@@ -487,11 +485,6 @@ static unsigned do_dis_add_cmnd_dns( char *name, char *type, void (*user_routine
 	return((unsigned) service_id);
 }
 
-static unsigned do_dis_add_cmnd( char *name, char *type, void (*user_routine)(), dim_long tag)
-{
-	return do_dis_add_cmnd_dns(name, type, user_routine, tag, 0);
-}
-
 unsigned dis_add_cmnd( char *name, char *type, void (*user_routine)(), dim_long tag ) 
 {
 	unsigned ret;
@@ -499,7 +492,7 @@ unsigned dis_add_cmnd( char *name, char *type, void (*user_routine)(), dim_long 
 /*
 	DISABLE_AST
 */
-	ret = do_dis_add_cmnd( name, type, user_routine, tag );
+	ret = do_dis_add_cmnd_dns( name, type, user_routine, tag, 0 );
 /*
 	ENABLE_AST
 */
@@ -637,9 +630,68 @@ static int get_format_data(FORMAT_STR *format_data, char *def)
 	return(1);
 }
 
+int decode_duplicated_info(char *info, char *sname)
+{
+	int n_dupl;
+/*
+	int first_service = 1;
+*/
+	unsigned service_id;
+	char *ptr;
+	SERVICE *servp;
+	char str[256];
+
+	ptr = strchr(info,' ');
+	if(ptr)
+	{
+		*ptr = '\0';
+		strcpy(sname, info);
+		ptr++;
+		sscanf(ptr,"%d",&n_dupl);
+	}
+	ptr = strchr(ptr,' ');
+	while(ptr)
+	{
+		ptr++;
+		sscanf(ptr,"%x",&service_id);
+		if(service_id)
+		{
+			service_id &= 0x0FFFFFFF;
+			servp = (SERVICE *)id_get_ptr(service_id, SRC_DIS);
+			if(servp)
+			{
+				if((unsigned)servp->id == service_id)
+				{
+					servp->registered = -1;
+/*
+					if(first_service)
+					{
+						strcat(sname, " (ex: ");
+						strcat(sname, servp->name);
+						strcat(sname, ")");
+						first_service = 0;
+					}
+*/
+/*
+if(Debug_on)
+{
+*/
+					sprintf(str, "Service %s already declared\n", servp->name);
+					error_handler(0, DIM_WARNING, DIMDNSDUPLC, str, -1);
+				/*
+}
+*/
+				}
+			}
+		}
+		ptr = strchr(ptr,' ');
+	}
+	return(n_dupl);
+}
+
 void recv_dns_dis_rout( int conn_id, DNS_DIS_PACKET *packet, int size, int status )
 {
-	char str[128];
+	char str[MAX_NAME*2], dupl_server[MAX_NAME*2];
 	int dns_timr_time;
 	extern int rand_tmout(int, int);
 	extern int open_dns(dim_long, void (*)(), void (*)(), int, int, int);
@@ -647,7 +699,7 @@ void recv_dns_dis_rout( int conn_id, DNS_DIS_PACKET *packet, int size, int statu
 	extern void do_register_services(DIS_DNS_CONN *);
 	extern void do_dis_stop_serving_dns(DIS_DNS_CONN *);
 	DIS_DNS_CONN *dnsp;
-	int type, exit_code;
+	int type, exit_code, severity, n_dupl;
 
 	if(size){}
 	dnsp = find_dns_by_conn_id(conn_id);
@@ -707,14 +759,32 @@ void recv_dns_dis_rout( int conn_id, DNS_DIS_PACKET *packet, int size, int statu
 			register_services(dnsp, ALL, 0);
 			break;
 		case DNS_DIS_KILL :
-			sprintf(str,
-				"%s: Some Services already known to DNS",
-				dnsp->task_name);
 			/*
 			exit(2);
 			*/
-			Serving = -1;
-			error_handler(0, DIM_FATAL, DIMDNSDUPLC, str, -1);
+			severity = DIM_FATAL;
+			if(size > DNS_DIS_HEADER)
+			{
+				n_dupl = decode_duplicated_info(packet->dup_info, dupl_server);
+				if(exit_code == 1)
+				{
+					Serving = -1;
+					sprintf(str, "%s: Server already declared by %s", dnsp->task_name, dupl_server);
+				}
+				else
+				{
+					severity = DIM_WARNING;
+					sprintf(str, "%s: %d Services already declared by %s", dnsp->task_name,
+						n_dupl, dupl_server);
+				}
+			}
+			else
+			{
+				Serving = -1;
+				sprintf(str, "%s: Some Services already known to DNS",
+						dnsp->task_name);
+			}
+			error_handler(0, severity, DIMDNSDUPLC, str, -1);
 			/*
 			do_dis_stop_serving_dns(dnsp);
 			dis_stop_serving();
@@ -848,7 +918,8 @@ dim_print_date_time();
 	serv_regp = dis_dns_p->services;
 	n_services = 0;
 	tot_n_services = 0;
-	if( flag == NONE ) {
+	if( flag == NONE )
+	{
 		dis_dns_p->n_services = htovl(n_services);
 		dis_dns_p->size = htovl( DIS_DNS_HEADER + 
 			(n_services*(int)sizeof(SERVICE_REG)));
@@ -876,7 +947,10 @@ dim_print_date_time();
 		while( (servp = dis_hash_service_get_next(&hash_index, servp, 0)))
 		{
 			if(servp->dnsp == dnsp)
-				servp->registered  = 0;
+			{
+				if(servp->registered >= 0)
+					servp->registered = 0;
+			}
 		}
 	}
 	servp = 0;
@@ -888,7 +962,14 @@ dim_print_date_time();
 	{
 		if( flag == MORE ) 
 		{
-			if( servp->registered )
+			if( servp->registered != 0)
+			{
+				continue;
+			}
+		}
+		else if( flag == ALL ) 
+		{
+			if( servp->registered < 0)
 			{
 				continue;
 			}
@@ -1093,11 +1174,13 @@ int dis_start_serving_dns(dim_long dnsid, char *task/*, int *idlist*/)
 {
 	char str0[MAX_NAME], str1[MAX_NAME],str2[MAX_NAME],
 	  str3[MAX_NAME],str4[MAX_NAME];
-	char task_name_aux[MAX_TASK_NAME];
+	char task_name_aux[MAX_TASK_NAME], task_name[MAX_NAME];
 	extern int open_dns();
 	extern DIS_DNS_CONN *dis_find_dns(dim_long);
+	extern int dis_find_dns_task(dim_long, char *);
 	DIS_DNS_CONN *dnsp;
 	unsigned int more_ids[10] = {0};
+	int n;
 
 	dis_init();
 	{
@@ -1119,19 +1202,25 @@ int dis_start_serving_dns(dim_long dnsid, char *task/*, int *idlist*/)
 		Client_head = (CLIENT *)malloc(sizeof(CLIENT));
 		dll_init( (DLL *) Client_head );
 	}
+	strncpy( task_name, task, (size_t)MAX_NAME );
+	task_name[MAX_NAME-1] = '\0';
 	if(dnsid == 0)
 	{
 		dnsp = Default_DNS;
 	}
 	else if(!(dnsp = dis_find_dns(dnsid)))
 	{
+		if((n = dis_find_dns_task(dnsid, task)) > 0)
+		{
+			sprintf(task_name, "%s-%i", task, n);
+		}
 		dnsp = create_dns(dnsid);
 	}
 	dnsp->serving = 1;
 	Serving = 1;
 	if(Dis_first_time)
 	{
-		strncpy( task_name_aux, task, (size_t)MAX_TASK_NAME );
+		strncpy( task_name_aux, task_name, (size_t)MAX_TASK_NAME );
 		task_name_aux[MAX_TASK_NAME-1] = '\0';
 		Port_number = SEEK_PORT;
 if(Debug_on)
@@ -1151,13 +1240,17 @@ dim_print_date_time();
 	{
 		dnsp->dis_first_time = 0;
 
-		sprintf(str0, "%s/VERSION_NUMBER", task);
-		sprintf(str1, "%s/CLIENT_LIST", task);
-		sprintf(str2, "%s/SERVICE_LIST", task);
-		sprintf(str3, "%s/SET_EXIT_HANDLER", task);
-		sprintf(str4, "%s/EXIT", task);
+		sprintf(str0, "%s/VERSION_NUMBER", task_name);
+		sprintf(str1, "%s/CLIENT_LIST", task_name);
+		sprintf(str2, "%s/SERVICE_LIST", task_name);
+		sprintf(str3, "%s/SET_EXIT_HANDLER", task_name);
+		sprintf(str4, "%s/EXIT", task_name);
 
-		more_ids[0] = do_dis_add_service_dns( str0, "L", &Version_number,
+/*added by dietrich beck, GSI*/
+#ifdef LABVIEWGSI
+		Version_number = _swapl(Version_number); //need to swap this number, since we hacked MY_LITTLE_ENDIAN
+#endif
+		more_ids[0] = do_dis_add_service_dns(str0, "L", &Version_number,
 						sizeof(Version_number), 0, 0, dnsid );
 
 		more_ids[1] = do_dis_add_service_dns( str1, "C", 0, 0, client_info, (dim_long)dnsp, dnsid );
@@ -1167,11 +1260,11 @@ dim_print_date_time();
 		more_ids[3] = do_dis_add_cmnd_dns( str3, "L:1", add_exit_handler, 0, dnsid );
 		more_ids[4] = do_dis_add_cmnd_dns( str4, "L:1", exit_handler, 0, dnsid );
 		more_ids[5] = 0;
-		strcpy( dnsp->task_name, task );
+		strcpy( dnsp->task_name, task_name );
 if(Debug_on)
 {
 dim_print_date_time();
- printf("start serving %s\n",task);
+ printf("start serving %s\n",task_name);
 }
 	}
 /*
@@ -1256,6 +1349,7 @@ static void dis_insert_request(int conn_id, DIC_PACKET *dic_packet, int size, in
 	int type, new_client = 0, found = 0;
 	int find_release_request();
 	DIS_DNS_CONN *dnsp;
+	int ret = 1;
 
 	if(size){}
 	/* status = 1 => new connection, status = -1 => conn. lost */
@@ -1369,7 +1463,7 @@ printf("Received Request for %s, from %d  %s@%s\n",
 		newp->reqpp = reqpp;
 		if((type != MONIT_ONLY) && (type != UPDATE))
 		{
-			execute_service(newp->req_id);
+			ret = execute_service(newp->req_id);
 		}
 		if((type != MONIT_ONLY) && (type != MONIT_FIRST))
 		{
@@ -1381,7 +1475,7 @@ printf("Received Request for %s, from %d  %s@%s\n",
 							newp->req_id );
 			}
 		}
-		if(new_client)
+		if((new_client) && (ret != -1))
 		{
 			Last_client = conn_id;
 			dnsp = clip->dnsp;
@@ -1398,7 +1492,7 @@ int execute_service( int req_id )
 	int *buffp, size;
 	register REQUEST *reqp;
 	register SERVICE *servp;
-	char str[80], def[MAX_NAME];
+	char str[256], def[MAX_NAME];
 	int conn_id, last_conn_id;
 	int *pkt_buffer, header_size, aux;
 #ifdef WIN32
@@ -1408,6 +1502,7 @@ int execute_service( int req_id )
 	struct timezone *tz;
 #endif
 	FORMAT_STR format_data_cp[MAX_NAME/4];
+	int ret = 1;
 
 	reqp = (REQUEST *)id_get_ptr(req_id, SRC_DIS);
 	if(!reqp)
@@ -1517,17 +1612,17 @@ printf("Updating %s for %s@%s (req_id = %d)\n",
 			dim_print_date_time();
 			if(reqp->delay_delete > 1)
 			{
-				printf(" Server (Explicitly) Updating Service %s: Couldn't write to Conn %3d : Client %s@%s\n",
+				sprintf(str, "Server (Explicitly) Updating Service %s: Couldn't write to Conn %3d : Client %s@%s\n",
 					servp->name, conn_id,
 					Net_conns[conn_id].task, Net_conns[conn_id].node);
 			}
 			else
 			{
-				printf(" Server Updating Service %s: Couldn't write to Conn %3d : Client %s@%s\n",
+				sprintf(str, "Server Updating Service %s: Couldn't write to Conn %3d : Client %s@%s\n",
 					servp->name, conn_id,
 					Net_conns[conn_id].task, Net_conns[conn_id].node);
 			}
-			fflush(stdout);
+			error_handler(0, DIM_WARNING, DIMTCPWRTMO, str, -1);
 		}
 		if(reqp->delay_delete > 1)
 		{
@@ -1537,6 +1632,7 @@ printf("Updating %s for %s@%s (req_id = %d)\n",
 		{
 			reqp->delay_delete = 0;
 			release_conn(conn_id, 1, 0);
+			ret = -1;
 		}
 	}
 /*
@@ -1551,7 +1647,7 @@ printf("Updating %s for %s@%s (req_id = %d)\n",
 */
 	if(reqp->delay_delete > 0)
 		reqp->delay_delete--;
-	return(1);
+	return(ret);
 }
 
 void remove_service( int req_id )
@@ -1560,6 +1656,7 @@ void remove_service( int req_id )
 	static DIS_PACKET *dis_packet;
 	static int packet_size = 0;
 	int service_id;
+	char str[256];
 
 	reqp = (REQUEST *)id_get_ptr(req_id, SRC_DIS);
 	if(!reqp)
@@ -1577,10 +1674,9 @@ Has to be dna_write otherwise the client gets the message much before the DNS
 */
 	if( !dna_write(reqp->conn_id, dis_packet, DIS_HEADER) ) 
 	{
-		dim_print_date_time();
-		printf(" Server Removing Service: Couldn't write to Conn %3d : Client %s@%s\n",
+		sprintf(str, "Server Removing Service: Couldn't write to Conn %3d : Client %s@%s\n",
 			reqp->conn_id, Net_conns[reqp->conn_id].task, Net_conns[reqp->conn_id].node);
-		fflush(stdout);
+		error_handler(0, DIM_WARNING, DIMTCPWRTMO, str, -1);
 		release_conn(reqp->conn_id, 0, 0);
 	}
 }
@@ -2056,7 +2152,7 @@ void dis_send_service(unsigned service_id, int *buffer, int size)
 	static DIS_PACKET *dis_packet;
 	static int packet_size = 0;
 	int conn_id;
-	char str[128];
+	char str[256];
 
 	DISABLE_AST
 	if( !service_id ) {
@@ -2096,10 +2192,9 @@ void dis_send_service(unsigned service_id, int *buffer, int size)
 		conn_id = reqp->conn_id;
 		if( !dna_write_nowait(conn_id, dis_packet, size + DIS_HEADER) )
 		{
-			dim_print_date_time();
-			printf(" Server Sending Service: Couldn't write to Conn %3d : Client %s@%s\n",conn_id,
+			sprintf(str, "Server Sending Service: Couldn't write to Conn %3d : Client %s@%s\n",conn_id,
 				Net_conns[conn_id].task, Net_conns[conn_id].node);
-			fflush(stdout);
+			error_handler(0, DIM_WARNING, DIMTCPWRTMO, str, -1);
 			release_conn(conn_id, 1, 0);
 		}
 		else
@@ -2109,6 +2204,16 @@ void dis_send_service(unsigned service_id, int *buffer, int size)
 }
 
 int dis_remove_service(unsigned service_id)
+{
+	int ret;
+	void *dnsp;
+	int do_dis_remove_service(unsigned, int , void **);
+
+	ret = do_dis_remove_service(service_id, 1, &dnsp);
+	return ret;
+}
+
+int do_dis_remove_service(unsigned service_id, int do_stop_serving, void **thednsp)
 {
 	register REQUEST *reqp, *auxp;
 	register SERVICE *servp;
@@ -2195,12 +2300,22 @@ dim_print_date_time();
 	{
 		if(n_services == 5)
 		{
-			if(Dis_conn_id)
+			if(do_stop_serving)
 			{
-				dna_close(Dis_conn_id);
-				Dis_conn_id = 0;
+				if(Dis_conn_id)
+				{
+					dna_close(Dis_conn_id);
+					Dis_conn_id = 0;
+				}
+				ENABLE_AST
 			}
-			ENABLE_AST
+			else
+			{
+				*thednsp = dnsp;
+				ENABLE_AST
+				return -1;
+			}
+
 /*
 			dis_stop_serving();
 */
@@ -2336,7 +2451,8 @@ void dis_stop_serving_dns(dim_long dnsid)
 	DIS_DNS_CONN *dnsp, *dis_find_dns();
 
 	dnsp = dis_find_dns(dnsid);
-	do_dis_stop_serving_dns(dnsp);
+	if(dnsp)
+		do_dis_stop_serving_dns(dnsp);
 }
 
 void dis_stop_serving()
@@ -2699,7 +2815,7 @@ static int release_conn(int conn_id, int print_flg, int dns_flag)
 	{
 		dim_print_date_time();
 		dna_get_node_task(conn_id, node, task);
-		printf(" Couldn't write to client %s@%s, releasing connection %d\n",
+		printf("Couldn't write to client %s@%s, releasing connection %d\n",
 			task, node, conn_id);
 		fflush(stdout);
 	}
@@ -2985,7 +3101,7 @@ void service_info(dim_long *tag, int **bufp, int *size, int *first_time)
 		{
 			if(servp->dnsp != dnsp)
 				continue;
-			if(servp->registered)
+			if(servp->registered > 0)
 			{
 /*
 				servp->registered = 2;
@@ -3015,7 +3131,7 @@ void service_info(dim_long *tag, int **bufp, int *size, int *first_time)
 				append_service(buff_ptr, servp);
 				buff_ptr += (int)strlen(buff_ptr);
 			}
-			else if(servp->registered < (Last_n_clients+1))
+			else if((servp->registered > 0) && (servp->registered < (Last_n_clients+1)))
 			{
 				if(!done)
 				{
@@ -3369,6 +3485,21 @@ DIS_DNS_CONN *dis_find_dns(dim_long dnsid)
 	}
 */
 	return dnsp;
+}
+
+int dis_find_dns_task(dim_long dnsid, char *task)
+{
+	DIS_DNS_CONN *dnsp;
+	int n = 0;
+
+	if(dnsid){}
+	dnsp = (DIS_DNS_CONN *) DNS_head;
+	while ( (dnsp = (DIS_DNS_CONN *) dll_get_next( (DLL *) DNS_head, (DLL *) dnsp)))
+	{
+		if(!strcmp(dnsp->task_name, task))
+			n++;
+	}
+	return n;
 }
 
 int dis_no_dns()
