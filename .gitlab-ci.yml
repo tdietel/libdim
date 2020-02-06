@@ -1,4 +1,4 @@
-image: jasonbarrella/libdim:latest
+image: jasonbarrella/libdim:centos6
 
 
 variables:
