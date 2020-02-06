@@ -136,6 +136,9 @@ rpm:
 	make dist
 	rpmbuild -ta $(PACKAGE)-$(VERSION).tar.gz
 
+docker:
+	docker build . 
+
 
 upload:	$(RPM_TOP_DIR)/RPMS/i386/libdim1-$(VERSION)-1.i386.rpm \
 	$(RPM_TOP_DIR)/RPMS/i386/libjdim1-$(VERSION)-1.i386.rpm \

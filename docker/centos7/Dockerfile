@@ -13,6 +13,8 @@ RUN yum install rpm-build -y
 
 RUN yum install java-1.8.0-openjdk-devel -y
 
+RUN yum install make -y
+
 
 # COPY ./alicetrd.repo /etc/yum.repos.d
 
@@ -24,13 +26,19 @@ RUN yum install java-1.8.0-openjdk-devel -y
 
 
 #test libdim build#
-WORKDIR /usr/src/app
+# WORKDIR /usr/src/app
 
-COPY ./libdim-src.tar.gz .
+VOLUME [ "/home/jason/Documents/masters/libdim/" ]
 
-RUN tar -xf libdim-src.tar.gz
+# COPY ./libdim-src.tar.gz .
 
-WORKDIR /usr/src/app/libdim
+# RUN tar -xf libdim-src.tar.gz
+
+# WORKDIR /usr/src/app/libdim
+
+WORKDIR /home/jason/Documents/masters/libdim/
+
+RUN pwd && ls
 
 RUN ./bootstrap && ./configure
 
