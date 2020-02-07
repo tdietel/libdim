@@ -59,3 +59,7 @@ directory, change the version number in configure.ac and recompile.
 [DIM]: https://dim.web.cern.ch
 [NBI]: http://fmd.nbi.dk/fmd/fee/dim/
 [HD]: https://alice.physi.uni-heidelberg.de/svn/trd/libdim/
+
+### Docker 
+
+This repository is configured to run a CI build process on any commits to master branch. The building will be done on either a centos6 or centos7 Docker image depending on what is selected in the .gitlab-ci.yaml file. This will build Dim as well as the rpm packages which are automatically deployed to the http://alicetrd.web.cern.ch yum repository which is held on the CERN EOS drive.
