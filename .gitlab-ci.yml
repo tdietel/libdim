@@ -18,10 +18,10 @@ build:
     - make
     - make rpm
     - chmod -R 755 /root/rpmbuild/RPMS
-    - mkdir public && cp -r /root/rpmbuild/RPMS public/
+    - mkdir public && cp -r /root/rpmbuild/RPMS/x86_64 public/
   artifacts:
     paths:
-    - RPMS/**
+    - public/**
 
 deployment:
   stage: deploy
