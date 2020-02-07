@@ -17,6 +17,8 @@ build:
     - ./configure
     - make
     - make rpm
+    - chmod -R 755 /root/rpmbuild/RPMS
+    - mkdir public && cp -r /root/rpmbuild/RPMS public/
   artifacts:
     paths:
     - RPMS/**
@@ -27,7 +29,5 @@ deployment:
     - master
   image: gitlab-registry.cern.ch/ci-tools/ci-web-deployer:latest
   script:
-  - chmod -R 755 /root/rpmbuild/RPMS
-  - mkdir public && cp -r /root/rpmbuild/RPMS public/
   - deploy-eos
       
