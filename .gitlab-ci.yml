@@ -1,4 +1,4 @@
-image: jasonbarrella/libdim:centos7
+image: gitlab-registry.cern.ch/alitrd/alitrd-containers:centos7
 
 
 variables:
