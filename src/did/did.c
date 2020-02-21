@@ -2340,10 +2340,15 @@ char str[MAX_NAME], sname[MAX_NAME], *ptr;
 	buffer->server.n_services = vtohl(buffer->server.n_services);
 	buffer->server.pid = vtohl(buffer->server.pid);
 	n_services = buffer->server.n_services;
-
+	/*
+printf("received pid %d, nservices %d\n",buffer->server.pid, n_services);
+	*/
 	if(n_services == 1)
 	  return;
 	strcpy(sname, buffer->server.task);
+	/*
+printf("name = %s\n", sname);
+	*/
 	if(n_services > 1)
 	{
 		for(j = 0; j < n_services; j++)
@@ -2409,6 +2414,12 @@ char str[MAX_NAME], sname[MAX_NAME], *ptr;
 			N_services += n_services;
 		}
 		servp->busy = 1;
+		if(strcmp(servp->name, sname))
+		{
+		  strcpy(servp->name,sname);
+		  Force_update = 1;
+		  servp->busy = 3;
+		}
 	}
 	else
 	{
@@ -2525,6 +2536,11 @@ void put_label();
 		    return;
 		}
 		server_ptr = &servp->server;
+		if(servp->busy == 3)
+		{
+		  remove_button(servp);
+		  servp->busy = 1;
+		}
 		if(servp->busy == 1)
 		{
 			if(!servp->button_id)

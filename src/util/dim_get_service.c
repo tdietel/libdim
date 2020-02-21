@@ -45,7 +45,7 @@ char **argv;
 	}
 	else
 	{
-		sprintf(str,argv[1]);
+		sprintf(str,"%s",argv[1]);
 	}
 	dic_info_service(str,ONCE_ONLY,60,0,0,rout,0,&no_link,4);
 	while(!received)

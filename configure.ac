@@ -184,6 +184,10 @@ dnl __________________________________________________________________
 if test "x$enable_utils" = "xyes" ; then
 	AC_CHECK_HEADERS(Mrm/MrmAppl.h Xm/Xm.h,, AC_MSG_ERROR([utility program DID requires Motif]))
 	AC_CHECK_LIB(Mrm, main, MOTIF_LIBS="-lMrm", AC_MSG_ERROR([utility program DID requires Motif]))
+  AC_CHECK_LIB(Xm, main, MOTIF_LIBS="$MOTIF_LIBS -lXm", AC_MSG_ERROR([utility program DID requires Motif]))
+ 	AC_CHECK_LIB(Xt, main, MOTIF_LIBS="$MOTIF_LIBS -lXt", AC_MSG_ERROR([utility program DID requires Motif]))
+	AC_CHECK_LIB(X11, main, MOTIF_LIBS="$MOTIF_LIBS -lX11", AC_MSG_ERROR([utility program DID requires Motif]))
+
 	AC_SUBST(MOTIF_LIBS)
 fi
 

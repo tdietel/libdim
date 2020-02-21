@@ -19,6 +19,25 @@
 #define DIMLIB
 #include <dim.h>
 
+/*added by dietrich beck, GSI*/
+#ifdef PHARLAP
+#define getenv(x) getenv2(x)
+char* getenv2(envname)
+char* envname;
+{
+	char* buff;
+	int ml;
+
+	buff = (char*)malloc(200);
+	ml = GetEnvironmentVariable(envname, buff, 200);
+
+	if (ml == 0){
+		buff = NULL;
+	}
+	return buff;
+}
+#endif
+
 int get_proc_name(char *proc_name)
 {
 #ifndef VxWorks
@@ -40,30 +59,36 @@ int	i;
 #ifdef WIN32
 extern void init_sock();
 #endif
+int ret;
 
 	DISABLE_AST
 #ifdef WIN32
 	init_sock();
 #endif
+	node_name[0] = '\0';
 	if( (p = getenv("DIM_HOST_NODE")) != NULL )
 	{
-		strcpy( node_name, p );
+		strncpy(node_name, p, (size_t)MAX_NODE_NAME);
+		node_name[MAX_NODE_NAME - 1] = '\0';
 		ENABLE_AST
 		return(1);
 	}
-	if((gethostname(node_name, MAX_NODE_NAME)) == -1)
+	ret = gethostname(node_name, MAX_NODE_NAME);
+	node_name[MAX_NODE_NAME - 1] = '\0';
+	if (ret == -1)
 	{
 		ENABLE_AST
 		return(0);
 	}
 #ifndef VxWorks
 #ifndef RAID
-	if(!strchr(node_name,'.'))
+	if (!strchr(node_name, '.'))
 	{
 		if ((host = gethostbyname(node_name)) != (struct hostent *)0) 
 		{		
-			strcpy(node_name,host->h_name);
-			if(!strchr(node_name,'.'))
+			strncpy(node_name, host->h_name, MAX_NODE_NAME);
+			node_name[MAX_NODE_NAME - 1] = '\0';
+			if (!strchr(node_name, '.'))
 			{
 				if(host->h_aliases)
 				{
@@ -74,7 +99,8 @@ extern void init_sock();
 							p = host->h_aliases[i];
 							if(strchr(p,'.'))
 							{
-								strcpy(node_name,p);
+								strncpy(node_name, p, MAX_NODE_NAME);
+								node_name[MAX_NODE_NAME - 1] = '\0';
 								break;
 							}
 						}
@@ -100,13 +126,14 @@ int get_node_addr(char *node_addr)
 #ifndef VxWorks
 struct hostent *host;
 #endif
-char node_name[MAX_NODE_NAME];
+char node_name[MAX_NAME];
 char *ptr;
 
 #ifdef WIN32
 	init_sock();
 #endif
-	gethostname(node_name, MAX_NODE_NAME);
+	gethostname(node_name, MAX_NAME);
+	node_name[MAX_NAME - 1] = '\0';
 #ifndef VxWorks
 	if ((host = (struct hostent *)gethostbyname(node_name)) == (struct hostent *)0)
 	{

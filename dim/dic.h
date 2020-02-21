@@ -20,30 +20,51 @@
 #define dic_get_format dic_get_format_
 
 /* Routine definition */
+#ifdef __cplusplus
+extern "C" {
+#define __CXX_CONST const
+#else
+#define __CXX_CONST
+#endif
 
-_DIM_PROTOE( unsigned dic_info_service, (char *service_name, int req_type,
+_DIM_PROTOE( unsigned dic_info_service, (__CXX_CONST char *service_name, int req_type,
 				    int req_timeout, void *service_address,
 				    int service_size, void (*usr_routine)(void*, void*, int*),
 				    dim_long tag, void *fill_addr, int fill_size) );
-_DIM_PROTOE( unsigned dic_info_service_stamped, (char *service_name, int req_type,
+_DIM_PROTOE( unsigned dic_info_service_stamped, (__CXX_CONST char *service_name, int req_type,
 				    int req_timeout, void *service_address,
 				    int service_size, void (*usr_routine)(void*, void*, int*),
 				    dim_long tag, void *fill_addr, int fill_size) );
-_DIM_PROTOE( int dic_cmnd_callback,      (char *service_name, void *service_address,
+_DIM_PROTOE( int dic_cmnd_callback,      (__CXX_CONST char *service_name, void *service_address,
 				    int service_size, void (*usr_routine)(void*, int*),
 				    dim_long tag) );
-_DIM_PROTOE( int dic_cmnd_service,      (char *service_name, void *service_address,
+_DIM_PROTOE( int dic_cmnd_service,      (__CXX_CONST char *service_name, void *service_address,
 				    int service_size) );
 _DIM_PROTOE( void dic_change_address,  (unsigned service_id, void *service_address,
 				    int service_size) );
 _DIM_PROTOE( void dic_release_service,  (unsigned service_id) );
-_DIM_PROTOE( int dic_find_service,      (char *service_name) );
-_DIM_PROTOE( int dic_get_id,      		(char *name) );
+_DIM_PROTOE( unsigned dic_info_service_dns, (dim_long dnsid, __CXX_CONST char *service_name, int req_type,
+	int req_timeout, void *service_address,
+	int service_size, void(*usr_routine)(void*, void*, int*),
+	dim_long tag, void *fill_addr, int fill_size));
+_DIM_PROTOE( unsigned dic_info_service_stamped_dns, (dim_long dnsid, __CXX_CONST char *service_name, int req_type,
+	int req_timeout, void *service_address,
+	int service_size, void(*usr_routine)(void*, void*, int*),
+	dim_long tag, void *fill_addr, int fill_size));
+_DIM_PROTOE( int dic_cmnd_callback_dns, (dim_long dnsid, __CXX_CONST char *service_name, void *service_address,
+	int service_size, void(*usr_routine)(void*, int*),
+	dim_long tag));
+_DIM_PROTOE( int dic_cmnd_service_dns, (dim_long dnsid, __CXX_CONST char *service_name, void *service_address,
+	int service_size));
+_DIM_PROTOE( int dic_find_service,      (__CXX_CONST char *service_name) );
+_DIM_PROTOE( int dic_get_id,      		(__CXX_CONST char *name) );
 _DIM_PROTOE( int dic_get_quality,  		(unsigned service_id) );
 _DIM_PROTOE( int dic_get_timestamp,  (unsigned service_id, int *secs, int *milisecs) );
 _DIM_PROTOE( char *dic_get_format,      		(unsigned service_id) );
 _DIM_PROTOE( void dic_disable_padding,      		() );
 _DIM_PROTOE( void dic_close_dns,      		() );
+_DIM_PROTOE( void dic_close_dns_dns,		(dim_long dnsid));
+_DIM_PROTOE( void dic_close_dnss,			());
 _DIM_PROTOE( void dic_add_error_handler,(void (*usr_routine)(int, int, char*)) );
 _DIM_PROTOE( char *dic_get_error_services,	() );
 _DIM_PROTOE( char *dic_get_server_services,	(int conn_id) );
@@ -51,6 +72,11 @@ _DIM_PROTOE( int dic_get_server,       (char *name ) );
 _DIM_PROTOE( int dic_get_conn_id,      () );
 _DIM_PROTOE( void dic_stop,      () );
 _DIM_PROTOE( int dic_get_server_pid,       (int *pid ) );
+
+#ifdef __cplusplus
+#undef __CXX_CONST
+}
+#endif
 
 #endif
 

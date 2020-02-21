@@ -50,16 +50,14 @@ void *dim_tcpip_thread(void *tag)
 	IO_thread = pthread_self();
 
 	dim_tcpip_init(1);
-	if(INIT_thread)
-	{
-#ifndef darwin
-		sem_post(&DIM_INIT_Sema);
-#else
-		sem_post(DIM_INIT_Semap);
-#endif
-	}
 	while(1)
     {
+		if(INIT_thread)
+#ifndef darwin
+			sem_post(&DIM_INIT_Sema);
+#else
+			sem_post(DIM_INIT_Semap);
+#endif
 		tcpip_task();
 		/*
 #ifndef darwin
@@ -86,16 +84,16 @@ void *dim_dtq_thread(void *tag)
 	ALRM_thread = pthread_self();
 
 	dim_dtq_init(1);
-	if(INIT_thread)
-	{
-#ifndef darwin
-		sem_post(&DIM_INIT_Sema);
-#else
-		sem_post(DIM_INIT_Semap);
-#endif
-	}
 	while(1)
-	{
+	  {
+		if(INIT_thread)
+		  {
+#ifndef darwin
+			sem_post(&DIM_INIT_Sema);
+#else
+			sem_post(DIM_INIT_Semap);
+#endif
+		  }
 		dtq_task();
 		/*
 #ifndef darwin
@@ -112,6 +110,7 @@ void dim_init()
 {
 	pthread_t t_id;
 	void ignore_sigpipe();
+	int ret;
 	extern int dna_init();
 /*
 #ifdef LYNXOS
@@ -120,11 +119,6 @@ void dim_init()
 /*
 #endif
 */
-    if(DIM_Threads_OFF)
-    {
-		dim_no_threads();
-		return;
-    }
 	if(!DIM_THR_init_done)
 	{
 	  /*
@@ -140,7 +134,7 @@ void dim_init()
 		MAIN_thread = INIT_thread;
 		
 #ifndef darwin 	
-		sem_init(&DIM_INIT_Sema, 0, (unsigned int)INIT_count);
+		sem_init(&DIM_INIT_Sema, 0, INIT_count);
 		/*
 		sem_init(&DIM_WAIT_Sema, 0, WAIT_count);
 		*/
@@ -165,9 +159,9 @@ void dim_init()
 		pthread_create(&t_id, &attr, dim_dtq_thread, 0);
 #endif
 #ifndef darwin
-		sem_wait(&DIM_INIT_Sema);
+		ret = sem_wait(&DIM_INIT_Sema);
 #else
-		sem_wait(DIM_INIT_Semap);
+		ret = sem_wait(DIM_INIT_Semap);
 #endif
 #if defined (LYNXOS) && !defined (__Lynx__)
 		pthread_create(&t_id, attr, dim_tcpip_thread, 0);
@@ -175,9 +169,9 @@ void dim_init()
 		pthread_create(&t_id, &attr, dim_tcpip_thread, 0);
 #endif
 #ifndef darwin
-		sem_wait(&DIM_INIT_Sema);
+		ret = sem_wait(&DIM_INIT_Sema);
 #else
-		sem_wait(DIM_INIT_Semap);
+		ret = sem_wait(DIM_INIT_Semap);
 #endif
 		INIT_thread = 0;
 	}
@@ -185,10 +179,9 @@ void dim_init()
 
 void dim_stop()
 {
-	void dim_tcpip_stop(), dim_dtq_stop();
-/*
 	int i;
 	int n = 0;
+	void dim_tcpip_stop(), dim_dtq_stop();
 
 	for( i = 0; i< Curr_N_Conns; i++ )
 	{
@@ -197,15 +190,10 @@ void dim_stop()
 	}
 	if(n)
 		return;
-*/
 	if(IO_thread)
 		pthread_cancel(IO_thread);
 	if(ALRM_thread)
 		pthread_cancel(ALRM_thread);
-	if(IO_thread) 
-		pthread_join(IO_thread,0);
-	if(ALRM_thread) 
-		pthread_join(ALRM_thread,0);
 #ifndef darwin 		
 	sem_destroy(&DIM_INIT_Sema);
 	/*
@@ -223,12 +211,16 @@ void dim_stop()
 #endif
 	dim_tcpip_stop();
 	dim_dtq_stop();	
+	if(IO_thread) 
+		pthread_join(IO_thread,0);
+	if(ALRM_thread) 
+		pthread_join(ALRM_thread,0);
 	IO_thread = 0;
 	ALRM_thread = 0;
 	DIM_THR_init_done = 0;
 }
 
-dim_long dim_start_thread(void *(*thread_ast)(void *), dim_long tag)
+long dim_start_thread(void *(*thread_ast)(void *), long tag)
 {
 	pthread_t t_id;
     pthread_attr_t attr;
@@ -240,10 +232,10 @@ dim_long dim_start_thread(void *(*thread_ast)(void *), dim_long tag)
 	pthread_attr_init(&attr);
 	pthread_create(&t_id, &attr, thread_ast, (void *)tag);
 #endif
-	return((dim_long)t_id);
+	return((long)t_id);
 }	
 
-int dim_stop_thread(dim_long t_id)
+int dim_stop_thread(long t_id)
 {
 	int ret;
 	ret = pthread_cancel((pthread_t)t_id);
@@ -449,19 +441,12 @@ pthread_mutex_t Global_DIM_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t Global_cond_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t Global_cond = PTHREAD_COND_INITIALIZER;
 #endif
-int Global_cond_counter = 0;
-int Global_cond_waiters = 0;
 
 void dim_lock()
 {
 	/*printf("Locking %d ", pthread_self());*/
     if(Dim_thr_locker != pthread_self())
     {
-/*
-#ifdef __linux__
-		pthread_testcancel();
-#endif
-*/
 		pthread_mutex_lock(&Global_DIM_mutex);
 		Dim_thr_locker=pthread_self();
 		/*printf(": Locked ");*/
@@ -486,29 +471,14 @@ void dim_unlock()
 void dim_wait_cond()
 {
   pthread_mutex_lock(&Global_cond_mutex);
-  Global_cond_waiters++;
-  if(!Global_cond_counter)
-  {
-	pthread_cond_wait(&Global_cond, &Global_cond_mutex);
-  }
-  Global_cond_waiters--;
-  if(!Global_cond_waiters)
-	  Global_cond_counter--;
+  pthread_cond_wait(&Global_cond, &Global_cond_mutex);
   pthread_mutex_unlock(&Global_cond_mutex);
 }
 
 void dim_signal_cond()
 {
   pthread_mutex_lock(&Global_cond_mutex);
-  if(!Global_cond_waiters)
-  {
-	Global_cond_counter = 1;
-  }
-  else
-  {
-	Global_cond_counter++;
-	pthread_cond_broadcast(&Global_cond);
-  }
+  pthread_cond_broadcast(&Global_cond);
   pthread_mutex_unlock(&Global_cond_mutex);
 }
 
@@ -536,18 +506,15 @@ int dim_wait()
   return(-1);
 }
 
-dim_long dim_start_thread(void (*thread_ast)(), dim_long tag)
+long dim_start_thread(void (*thread_ast)(), long tag)
 
 {
-	if(thread_ast){}
-	if(tag){}
 	printf("dim_start_thread: not available\n");
-	return (dim_long)0;
+	return (long)0;
 }
 
-int dim_stop_thread(dim_long t_id)
+int dim_stop_thread(long t_id)
 {
-	if(t_id){}
 	printf("dim_stop_thread: not available\n");
 	return 0;
 }
@@ -569,14 +536,14 @@ void dim_tcpip_stop(), dim_dtq_stop();
 
 typedef struct{
 	void (*thread_ast)();
-	dim_long tag;
+	long tag;
 	
 }THREAD_PARAMS;
 
 #ifndef STDCALL
-dim_long dim_start_thread(void (*thread_ast)(), dim_long tag)
+long dim_start_thread(void (*thread_ast)(), long tag)
 #else
-dim_long dim_start_thread(dim_long (*thread_ast)(void *), void *tag)
+long dim_start_thread(unsigned long (*thread_ast)(void *), void *tag)
 #endif
 {
 DWORD threadid = 0;
@@ -599,11 +566,11 @@ HANDLE hthread;
         0,                           /* use default creation flags		*/
         &threadid);					 /* returns the thread identifier	*/
 #endif
-	return (dim_long)hthread;
+	return (long)hthread;
 }
 
 
-int dim_stop_thread(dim_long thread_id)
+int dim_stop_thread(long thread_id)
 {
 	int ret;
 
@@ -674,7 +641,6 @@ void dim_init_threads()
 
 void dim_stop_threads()
 {
-/*
 	int i;
 	int n = 0;
 
@@ -685,7 +651,6 @@ void dim_stop_threads()
 	}
 	if(n)
 		return;
-*/
 	if(hIO_thread)
 		TerminateThread(hIO_thread, 0);
 	if(hALRM_thread)
@@ -714,7 +679,7 @@ int dim_set_scheduler_class(int pclass)
 {
 	HANDLE hProc;
 	int ret;
-	DWORD p = 0;
+	DWORD p;
 
 #ifndef PXI
 	hProc = GetCurrentProcess();
@@ -735,12 +700,7 @@ int dim_set_scheduler_class(int pclass)
 		p = HIGH_PRIORITY_CLASS;
 	else if(pclass == 2)
 		p = REALTIME_PRIORITY_CLASS;
-/*added by dietrich beck, GSI*/
-#ifdef PHARLAP
-	ret = 1;
-#else
 	ret = SetPriorityClass(hProc, p);
-#endif
 	if(ret)
 	  return 1;
 	ret = GetLastError();
@@ -759,13 +719,8 @@ int dim_get_scheduler_class(int *pclass)
 #ifndef PXI
 	hProc = GetCurrentProcess();
 
-/*added by dietrich beck, GSI*/
-#ifdef PHARLAP
-	ret = NORMAL_PRIORITY_CLASS;
-#else
 	ret = GetPriorityClass(hProc);
-#endif
-	if (ret == 0)
+	if(ret == 0)
 	  return 0;
 	if(ret == IDLE_PRIORITY_CLASS)
 		*pclass = -1;
@@ -792,8 +747,8 @@ int dim_get_scheduler_class(int *pclass)
 
 int dim_set_priority(int threadId, int prio)
 {
-	HANDLE id = 0;
-	int ret, p = 0;
+	HANDLE id;
+	int ret, p;
 
 #ifndef PXI
 	if(threadId == 1)
@@ -829,8 +784,8 @@ int dim_set_priority(int threadId, int prio)
 
 int dim_get_priority(int threadId, int *prio)
 {
-	HANDLE id = 0;
-	int ret, p = 0;
+	HANDLE id;
+	int ret, p;
 
 #ifndef PXI
 	if(threadId == 1)
