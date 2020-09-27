@@ -1,21 +1,23 @@
 include: '/build-aux/ci-template.yml'
 
-variables:
-  REQUIRED_PACKAGES: motif-devel
-
 
 build_centos6:
   extends: .build_centos_yum
+  before_script:
+      - ./bootstrap
   variables:
     OS: centos6
 
 build_centos7:
   extends: .build_centos_yum
+  before_script:
+      - ./bootstrap
   variables:
     OS: centos7
 
 build_centos8:
   extends: .build_centos_dnf
   variables:
+    REQUIRED_PACKAGES: motif-devel
     OS: centos8
 

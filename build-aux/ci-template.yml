@@ -34,6 +34,7 @@ variables:
   extends: .build_centos_dnf
   before_script:
     - yum install -y ${REQUIRED_PACKAGES}
+    - ./bootstrap
 
 deployment:
   stage: deploy
