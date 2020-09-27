@@ -1,0 +1,44 @@
+
+variables:
+  EOS_PATH: ${RPM_EOS_PATH}/download/yum
+  EOS_ACCOUNT_USERNAME: $EOS_SERV_USER
+  EOS_ACCOUNT_PASSWORD: $EOS_SERV_PASS
+
+.build_centos_dnf:
+  stage: build
+  image: gitlab-registry.cern.ch/alitrd/alitrd-containers:${OS}
+  only:
+    - branches
+    - tags
+
+  before_script:
+    - dnf -y --enablerepo=PowerTools install ${REQUIRED_PACKAGES}
+    - ./bootstrap
+
+  script:
+    - ./configure
+    - make
+    - make rpm
+
+    - chmod -R 755 /root/rpmbuild
+
+    - mkdir -p public/${OS}/x86_64/packages &&
+      cp -r /root/rpmbuild/RPMS/x86_64/* public/${OS}/x86_64/packages &&
+      cp /root/rpmbuild/SRPMS/* public/${OS}/x86_64/packages
+
+  artifacts:
+    paths:
+    - public/**
+
+.build_centos_yum:
+  extends: .build_centos_dnf
+  before_script:
+    - yum install -y ${REQUIRED_PACKAGES}
+
+deployment:
+  stage: deploy
+  only:
+    - tags
+  image: gitlab-registry.cern.ch/ci-tools/ci-web-deployer:latest
+  script:
+    - deploy-eos

@@ -1,32 +1,21 @@
-image: gitlab-registry.cern.ch/alitrd/alitrd-containers:centos7
-
+include: '/build-aux/ci-template.yml'
 
 variables:
-  EOS_PATH: ${RPM_EOS_PATH}/packages/centos7
-  EOS_ACCOUNT_USERNAME: $EOS_SERV_USER
-  EOS_ACCOUNT_PASSWORD: $EOS_SERV_PASS
+  REQUIRED_PACKAGES: motif-devel
 
-  
-build:
-  stage: build
-  only:
-    - master
-  script:
-    - ./bootstrap
-    - ./configure
-    - make
-    - make rpm
-    - chmod -R 755 /root/rpmbuild/RPMS
-    - mkdir public && cp -r /root/rpmbuild/RPMS/x86_64 public/
-  artifacts:
-    paths:
-    - public/**
 
-deployment:
-  stage: deploy
-  only:
-    - master
-  image: gitlab-registry.cern.ch/ci-tools/ci-web-deployer:latest
-  script:
-  - deploy-eos
-      
+build_centos6:
+  extends: .build_centos_yum
+  variables:
+    OS: centos6
+
+build_centos7:
+  extends: .build_centos_yum
+  variables:
+    OS: centos7
+
+build_centos8:
+  extends: .build_centos_dnf
+  variables:
+    OS: centos8
+
