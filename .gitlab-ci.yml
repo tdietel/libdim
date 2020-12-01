@@ -21,3 +21,10 @@ build_centos8:
     REQUIRED_PACKAGES: motif-devel
     OS: centos8
 
+deployment:
+  stage: deploy
+  only:
+    - tags
+  image: gitlab-registry.cern.ch/ci-tools/ci-web-deployer:latest
+  script:
+    - deploy-eos
